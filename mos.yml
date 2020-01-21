@@ -1,0 +1,29 @@
+author: Matthew Bradley <mbradley612@gmail.com>
+description: Library for UART GPS modules
+type: lib
+version: 0.1
+
+tags:
+  - c
+  - hw
+  - docs:drivers:GPS
+
+# List of files / directories with C sources. No slashes at the end of dir names.
+sources:
+  - src
+
+includes:
+  - include
+
+config_schema:
+    - ["gps", "o", { title: "GPS Settings"}]
+    - ["gps.uart_no", "i", 2, { title: "Serial port number for gps"}]
+    - ["gps.baud_rate", "i", 9600, { title: "Serial baud rate for gps"}]
+    - ["gps.update_interval", "i", 2000, { title: "Time between gps reads"}]
+
+
+# we should probably fork the NMEA library and reference it.
+libs:
+
+# Used by the mos tool to catch mos binaries incompatible with this file format
+manifest_version: 2019-12-31
