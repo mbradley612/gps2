@@ -23,7 +23,6 @@
 extern "C" {
 #endif
 
-struct mgos_gps;
 
 /*
 latitude - latitude in degrees (double)
@@ -47,13 +46,19 @@ struct mgos_gps_reading {
     int satellites;
     int hdop;
 
-}
+};
 
-struct mgos_gps *mgos_gps_create(void);
+struct mgos_gps *mgos_gps_create(int uart_no);
 
 void mgos_gps_destroy(struct mgos_gps **gps);
 
-bool mgos_gps_get(struct mgos_gps *gps, struct mgos_gps_reading *gps_reading)
+// this is what we want to achieve
+/*
+ bool mgos_gps_get(struct mgos_gps *gps, struct mgos_gps_reading *gps_reading);
+*/
+
+// for now, we'll use some primitives to retrieve the current
+bool mgos_gps_get(struct mgos_gps *gps, double *latitude, double *longitude, int *speed, int *course, int *hdop);
 
 #ifdef __cplusplus
 }
