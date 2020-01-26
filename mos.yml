@@ -26,4 +26,4 @@ config_schema:
 libs:
 
 # Used by the mos tool to catch mos binaries incompatible with this file format
-manifest_version: 2019-12-31
+manifest_version: 2019-07-28

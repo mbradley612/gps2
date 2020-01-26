@@ -48,7 +48,7 @@ struct mgos_gps_reading {
 
 };
 
-struct mgos_gps *mgos_gps_create(int uart_no);
+struct mgos_gps *mgos_gps_create(int uart_no, int baud_rate, int update_interval);
 
 void mgos_gps_destroy(struct mgos_gps **gps);
 

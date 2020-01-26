@@ -125,6 +125,9 @@ static void parseGpsData(char *line, struct mgos_gps *gps)
     }
 }
 
+/*
+* This is the callback from the timer. In its current form, 
+*/
 static void gps_read_cb(void *arg)
 {
     struct mgos_gps * gps = arg;
@@ -157,7 +160,13 @@ static void gps_read_cb(void *arg)
 
 int esp32_uart_rx_fifo_len(int uart_no);
 
-static void uart_dispatcher(int uart_no, void *arg)
+// this callback is called whenever there is data in the UART input buffer or
+// space available in the UART output buffer.
+
+// the callback updates the dataAvailable field in the gps structure that manages
+// the state of this GPS device.
+
+void uart_dispatcher_cb(int uart_no, void *arg)
 {
     struct mgos_gps * gps = arg;
     assert(uart_no == gps->uart_no);
@@ -182,16 +191,25 @@ bool mgos_gps_setup(struct mgos_gps * gps)
 
     gps->ucfg->baud_rate = mgos_sys_config_get_gps_baud_rate();
     gps->ucfg->num_data_bits = 8;
-    //ucfg.parity = MGOS_UART_PARITY_NONE;
-    //ucfg.stop_bits = MGOS_UART_STOP_BITS_1;
+    gps->ucfg->parity = MGOS_UART_PARITY_NONE;
+    gps->ucfg->stop_bits = MGOS_UART_STOP_BITS_1;
     if (!mgos_uart_configure(gps->uart_no, &ucfg))
     {
         return false;
     }
 
-    mgos_set_timer(mgos_sys_config_get_gps_update_interval() /* ms */, true /* repeat */, gps_read_cb, &gps /* arg */);
+    // create a mgos timer to read from the UART. We pass our gps structure as a parameter to the
+    // callback.
 
-    mgos_uart_set_dispatcher(gps->uart_no, uart_dispatcher, &gps /* arg */);
+    mgos_set_timer(gps->update_interval /* ms */, true /* repeat */, gps_read_cb, gps /* arg */);
+
+    // configure the UART dispatcher, gets called when there is data in the input buffer or space 
+    // available in the output buffer. Our callback reads the data in the buffer. The gps structure
+    // is passed as an argument to the callback.
+
+    // see https://mongoose-os.com/docs/mongoose-os/api/core/mgos_uart.h.md
+
+    mgos_uart_set_dispatcher(gps->uart_no, uart_dispatcher_cb, gps /* arg */);
     mgos_uart_set_rx_enabled(gps->uart_no, true);
 
     return true;
@@ -211,7 +229,7 @@ bool mgos_gps_init(void)
 
 
 // may need an internal structure to store stuff.
-struct mgos_gps *mgos_gps_create(int uart_no) {
+struct mgos_gps *mgos_gps_create(int uart_no, int baud_rate, int update_interval) {
   struct mgos_gps *gps;
 
   gps = calloc(1, sizeof(struct mgos_gps));

@@ -3,6 +3,8 @@
 
 struct mgos_gps {
     int                             uart_no;
+    int                             baud_rate; 
+    int                             update_interval;
     struct mgos_uart_config *       ucfg;
     size_t                          dataAvailable;
     struct minmea_sentence_rmc *    lastFrame;
