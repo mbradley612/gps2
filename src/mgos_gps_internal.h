@@ -7,7 +7,6 @@ struct mgos_gps {
     int                             update_interval;
     struct mgos_uart_config *       ucfg;
     size_t                          dataAvailable;
-    struct minmea_sentence_rmc *    lastFrame;
     struct mgos_gps_reading *       latest_reading;
     void *                          user_data;
 };

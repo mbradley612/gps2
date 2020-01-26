@@ -17,7 +17,7 @@
 #pragma once
 
 #include "mgos.h"
-
+#include "minmea.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,26 +25,20 @@ extern "C" {
 
 
 /*
-latitude - latitude in degrees (double)
-longitude - longitude in degrees (double)
-date - raw date in DDMMYY format (u32)
-time - raw time in HHMMSSCC format (u32)
-speed - raw speed in 100ths of a knot (i32)
-course - raw course in 100ths of a degree (i32)
-altitude - altitude in metres (double)
-satellites - number of satellites in use (u32)
-hdop - horizontal dimension of precision in 100ths (i32)
+The fields in this structure are updated with the latest readings from the NMEA sentences as
+thye come in.
 */
 struct mgos_gps_reading {
-    double latitude;
-    double longitude;
-    int date;
-    int time;
-    int speed;
-    int course;
-    double altitude;
-    int satellites;
-    int hdop;
+    struct minmea_float latitude;
+    struct minmea_float longitude;
+    struct minmea_date date;
+    struct minmea_time time;
+    struct minmea_float speed;
+    struct minmea_float course;
+    struct minmea_float altitude; char altitude_units;
+    int satellites_tracked; 
+    struct minmea_float variation;
+    int fix_quality;
 
 };
 
@@ -52,13 +46,9 @@ struct mgos_gps *mgos_gps_create(int uart_no, int baud_rate, int update_interval
 
 void mgos_gps_destroy(struct mgos_gps **gps);
 
-// this is what we want to achieve
-/*
- bool mgos_gps_get(struct mgos_gps *gps, struct mgos_gps_reading *gps_reading);
-*/
+bool mgos_gps_get(struct mgos_gps *gps, struct mgos_gps_reading *latest_gps_reading);
 
-// for now, we'll use some primitives to retrieve the current
-bool mgos_gps_get(struct mgos_gps *gps, double *latitude, double *longitude, int *speed, int *course, int *hdop);
+bool mgos_gps2_init(void);
 
 #ifdef __cplusplus
 }

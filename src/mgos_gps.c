@@ -32,8 +32,14 @@
 
 
 // Private functions follow
-static void parseGpsData(char *line, struct mgos_gps *gps)
+void parseGpsData(char *line, struct mgos_gps *gps)
 {
+    struct mgos_gps_reading * latest_reading;
+
+    latest_reading = gps->latest_reading;
+
+
+
     char lineNmea[MINMEA_MAX_LENGTH];
     strncpy(lineNmea, line, sizeof(lineNmea) - 1);
     strcat(lineNmea, "\n");
@@ -48,7 +54,15 @@ static void parseGpsData(char *line, struct mgos_gps *gps)
         struct minmea_sentence_rmc frame;
         if (minmea_parse_rmc(&frame, lineNmea))
         {
-            gps->lastFrame = &frame;
+         
+            latest_reading->longitude = frame.longitude;
+            latest_reading->latitude = frame.latitude;
+            latest_reading->speed = frame.speed;
+            latest_reading->course = frame.course;
+            latest_reading->date = frame.date;
+            latest_reading->time = frame.time;
+            latest_reading->variation = frame.variation;
+            
             /*
       printf("$RMC: raw coordinates and speed: (%d/%d,%d/%d) %d/%d\n",
              frame.latitude.value, frame.latitude.scale,
@@ -68,11 +82,15 @@ static void parseGpsData(char *line, struct mgos_gps *gps)
     break;
 
     case MINMEA_SENTENCE_GGA:
+    // we just take the satellites tracked and fix quality
+    // from the GGA sentence.
     {
         struct minmea_sentence_gga frame;
         if (minmea_parse_gga(&frame, lineNmea))
         {
-            printf("$GGA: fix quality: %d\n", frame.fix_quality);
+            latest_reading->satellites_tracked = frame.satellites_tracked;
+            latest_reading->fix_quality = frame.fix_quality;
+            
         }
     }
     break;
@@ -179,17 +197,20 @@ void uart_dispatcher_cb(int uart_no, void *arg)
 }
 
 
-bool mgos_gps_setup(struct mgos_gps * gps)
+bool mgos_gps_setup(struct mgos_gps * gps, int uart_no, int baud_rate, int update_interval)
 {
 
     
     struct mgos_uart_config ucfg;
 
+    gps->uart_no = uart_no;
+    gps->update_interval = update_interval;
+    gps->ucfg->baud_rate = baud_rate;
+
     ucfg = * gps->ucfg;
 
-    mgos_uart_config_set_defaults(gps->uart_no, &ucfg);
+    mgos_uart_config_set_defaults(uart_no, &ucfg);
 
-    gps->ucfg->baud_rate = mgos_sys_config_get_gps_baud_rate();
     gps->ucfg->num_data_bits = 8;
     gps->ucfg->parity = MGOS_UART_PARITY_NONE;
     gps->ucfg->stop_bits = MGOS_UART_STOP_BITS_1;
@@ -215,10 +236,6 @@ bool mgos_gps_setup(struct mgos_gps * gps)
     return true;
 }
 
-bool mgos_gps_init(void)
-{
-    return true;
-}
 
 
 
@@ -240,7 +257,13 @@ struct mgos_gps *mgos_gps_create(int uart_no, int baud_rate, int update_interval
 
   gps->uart_no = uart_no;
 
-  mgos_gps_setup(gps);
+  gps->latest_reading = calloc(1, sizeof(struct mgos_gps_reading));
+  if (!gps->latest_reading) {
+      return NULL;
+  }
+  memset(gps->latest_reading,0,sizeof(struct mgos_gps_reading));
+
+  mgos_gps_setup(gps, uart_no, baud_rate, update_interval);
 
   return gps;
 }
@@ -262,3 +285,8 @@ void mgos_imu_destroy(struct mgos_gps **gps) {
 }
 
 
+
+
+bool mgos_gps2_init(void) {
+  return true;
+}
