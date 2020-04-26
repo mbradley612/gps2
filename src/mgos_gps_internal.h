@@ -1,13 +1,21 @@
 #include "minmea.h"
 #include "mgos_gps.h"
 
-struct mgos_gps {
-    int                             uart_no;
-    int                             baud_rate; 
-    int                             update_interval;
-    struct mgos_uart_config *       ucfg;
-    size_t                          dataAvailable;
-    struct mgos_gps_reading *       latest_reading;
-    void *                          user_data;
+
+
+// needs a boolean or booleans to indicate if values populated.
+struct minmea_reading {
+    struct minmea_float latitude;
+    struct minmea_float longitude;
+    struct minmea_date date;
+    struct minmea_time time;
+    struct minmea_float speed;
+    struct minmea_float course;
+    struct minmea_float altitude; char altitude_units;
+    int satellites_tracked; 
+    struct minmea_float variation;
+    int fix_quality;
+
 };
+
 

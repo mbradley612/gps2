@@ -34,9 +34,9 @@
 // Private functions follow
 void parseGpsData(char *line, struct mgos_gps *gps)
 {
-    struct mgos_gps_reading * latest_reading;
+    struct minmea_reading * latest_nmea_reading;
 
-    latest_reading = gps->latest_reading;
+    latest_nmea_reading = gps->latest_reading;
 
 
 
@@ -55,13 +55,13 @@ void parseGpsData(char *line, struct mgos_gps *gps)
         if (minmea_parse_rmc(&frame, lineNmea))
         {
          
-            latest_reading->longitude = frame.longitude;
-            latest_reading->latitude = frame.latitude;
-            latest_reading->speed = frame.speed;
-            latest_reading->course = frame.course;
-            latest_reading->date = frame.date;
-            latest_reading->time = frame.time;
-            latest_reading->variation = frame.variation;
+            latest_nmea_reading->longitude = frame.longitude;
+            latest_nmea_reading->latitude = frame.latitude;
+            latest_nmea_reading->speed = frame.speed;
+            latest_nmea_reading->course = frame.course;
+            latest_nmea_reading->date = frame.date;
+            latest_nmea_reading->time = frame.time;
+            latest_nmea_reading->variation = frame.variation;
             
             /*
       printf("$RMC: raw coordinates and speed: (%d/%d,%d/%d) %d/%d\n",
@@ -88,8 +88,8 @@ void parseGpsData(char *line, struct mgos_gps *gps)
         struct minmea_sentence_gga frame;
         if (minmea_parse_gga(&frame, lineNmea))
         {
-            latest_reading->satellites_tracked = frame.satellites_tracked;
-            latest_reading->fix_quality = frame.fix_quality;
+            latest_nmea_reading->satellites_tracked = frame.satellites_tracked;
+            latest_nmea_reading->fix_quality = frame.fix_quality;
             
         }
     }
@@ -257,11 +257,11 @@ struct mgos_gps *mgos_gps_create(int uart_no, int baud_rate, int update_interval
 
   gps->uart_no = uart_no;
 
-  gps->latest_reading = calloc(1, sizeof(struct mgos_gps_reading));
+  gps->latest_reading = calloc(1, sizeof(struct minmea_reading));
   if (!gps->latest_reading) {
       return NULL;
   }
-  memset(gps->latest_reading,0,sizeof(struct mgos_gps_reading));
+  memset(gps->latest_reading,0,sizeof(struct minmea_reading));
 
   mgos_gps_setup(gps, uart_no, baud_rate, update_interval);
 
@@ -282,6 +282,24 @@ void mgos_imu_destroy(struct mgos_gps **gps) {
   free(*gps);
   *gps = NULL;
   return;
+}
+
+
+bool mgos_gps_get(struct mgos_gps *gps, struct mgos_gps_reading *latest_gps_reading) {
+
+    struct minmea_reading * latest_nmea_reading;
+
+    latest_nmea_reading = gps->latest_reading;
+
+
+    latest_gps_reading->longitude = latest_nmea_reading->longitude.value;
+    latest_gps_reading->latitude = latest_nmea_reading->latitude.value;
+    latest_gps_reading->satellites_tracked = latest_nmea_reading->satellites_tracked;
+    latest_gps_reading->speed = latest_nmea_reading->speed.value;
+    latest_gps_reading->fix_quality = latest_nmea_reading->fix_quality;
+
+    return false;
+   
 }
 
 

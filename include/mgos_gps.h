@@ -23,28 +23,45 @@
 extern "C" {
 #endif
 
+struct minmea_reading;
+
+struct mgos_gps {
+    int                             uart_no;
+    int                             baud_rate; 
+    int                             update_interval;
+    struct mgos_uart_config *       ucfg;
+    int                             dataAvailable;
+    struct nmea_reading *           latest_reading;
+    void *                          user_data;
+};
 
 /*
-The fields in this structure are updated with the latest readings from the NMEA sentences as
-thye come in.
+The fields in this structure are populated with the values from the MNEA sentences as they are parsed.
 */
+
+// needs a boolean or booleans to indicate if values populated.
 struct mgos_gps_reading {
-    struct minmea_float latitude;
-    struct minmea_float longitude;
-    struct minmea_date date;
-    struct minmea_time time;
-    struct minmea_float speed;
-    struct minmea_float course;
-    struct minmea_float altitude; char altitude_units;
+    float latitude;
+     float longitude;
+     int date;
+     int time;
+     float speed;
+     float course;
+     float altitude;
     int satellites_tracked; 
-    struct minmea_float variation;
+    float variation;
     int fix_quality;
 
 };
 
+
+
 struct mgos_gps *mgos_gps_create(int uart_no, int baud_rate, int update_interval);
 
 void mgos_gps_destroy(struct mgos_gps **gps);
+
+// populates the structure latest_gps_reading with the latest values read from the
+// GPS module.
 
 bool mgos_gps_get(struct mgos_gps *gps, struct mgos_gps_reading *latest_gps_reading);
 
