@@ -16,14 +16,11 @@ includes:
   - include
 
 libs:
-  - origin: 
+
 
 config_schema:
 
 
-
-# we should probably fork the NMEA library and reference it.
-libs:
 
 # Used by the mos tool to catch mos binaries incompatible with this file format
 manifest_version: 2019-07-28
