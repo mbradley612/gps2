@@ -6,5 +6,6 @@
     "files.associations": {
         "gps2.h": "c",
         "mgos.h": "c"
-    }
+    },
+    "mos.port": ""
 }

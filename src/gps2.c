@@ -78,6 +78,17 @@ struct gps2 *gps2_create_uart(
 
     mgos_uart_set_dispatcher(gps_dev->uart_no,gps2_uart_dispatcher,gps_dev);
 
+
+    LOG(LL_INFO, ("Initialized GPS module"));
+    if (gps_dev->handler) {
+          gps_dev->handler(gps_dev, 
+          GPS_EV_INITIALIZED, 
+          NULL,
+          gps_dev->handler_user_data);
+    }
+    return gps_dev;
+
+
     err:
       if (gps_dev) free(gps_dev);
       return NULL;
