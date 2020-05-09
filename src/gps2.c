@@ -20,58 +20,31 @@
 
 #include "minmea.h"
 
-void parseNmeaString(char *bufferLine) {
+void parseNmeaString(char *bufferLine, struct gps2 *gps_dev) {
   char nmeaLine[MINMEA_MAX_LENGTH];
 
   // this all seems quite inefficient. Lots of copying of strings.
 
-  // copy the buffer
-  strncpy( nmeaLine, bufferLine, sizeof(nmeaLine) -1);
-  // add a carriage return
-  strcat(nmeaLine, "\n");
-
   // now parse the sentence
-  enum minmea_sentence_id sentence_id = minmea_sentence_id(nmeaLine, false);
+  enum minmea_sentence_id sentence_id = minmea_sentence_id(bufferLine, false);
 
+  // and log the result
+  LOG(LL_DEBUG,("NMEA sentence id: %d",sentence_id));
+
+  (void)nmeaLine;
 
 }
 
-void gps_read_cb(int uart_no,size_t rx_available) {
-  struct mbuf rx_buffer;
 
 
-  LOG(LL_DEBUG,("Reading %d from UART buffer",rx_available));  
-
-  // defensive check, this shouldn't happen
-  if (rx_available ==0) {
-    return;
-  }
-
-  // initialize the buffer
-  mbuf_init(&rx_buffer, 0);
-
-  // read from the UART into the buffer
-  mgos_uart_read_mbuf(uart_no,&rx_buffer,rx_available);
-
-  // if we've got anything in our buffer
-  if (rx_buffer.len > 0) {
-    
-    char *bufferLine;
-
-    // separate the string on the linefeed
-    bufferLine = strtok(rx_buffer.buf, "\n");
-    while (bufferLine != NULL) {
-      parseNmeaString(bufferLine);
-      bufferLine = strtok(rx_buffer.buf, "\n");
-    }
-
-  }
-}
+// NMEA strings end CR LF i.e. "\n"
+// see https://en.wikipedia.org/wiki/NMEA_0183
 
 void gps2_uart_dispatcher(int uart_no, void *arg){
     struct gps2 *gps_dev;
     size_t rx_available;
-
+    struct mbuf rx_buffer;
+    
     gps_dev = arg;
 
     // check that we've got the create uart
@@ -80,12 +53,30 @@ void gps2_uart_dispatcher(int uart_no, void *arg){
     // find out how many bytes are available to read
     rx_available = mgos_uart_read_avail(uart_no);
 
-    // if we've got anything to read, call our read function
-    if (rx_available > 0) {
-      
-
-      gps_read_cb(uart_no,rx_available);
+    // if there's nothing to read, return now
+    if (rx_available ==0) {
+      return;
     }
+
+    // initialize the buffer
+    mbuf_init(&rx_buffer,rx_available);
+
+    // read the buffer
+    mgos_uart_read_mbuf(uart_no,&rx_buffer,rx_available);
+
+    // if we've got anything in the buffer, tokenize on "\n"
+    if (rx_buffer.len > 0)
+    {
+      char *buffer_line;
+      buffer_line = strtok(rx_buffer.buf, "\n");
+      while (buffer_line != NULL)
+      {
+        LOG(LL_DEBUG,("GPS lineNmea: %s", buffer_line));
+        parseNmeaString(buffer_line, gps_dev);
+      }
+    }
+    // 
+    mbuf_free(&rx_buffer);
 
 }
 
