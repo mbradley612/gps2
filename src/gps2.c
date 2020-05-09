@@ -20,15 +20,72 @@
 
 #include "minmea.h"
 
+void parseNmeaString(char *bufferLine) {
+  char nmeaLine[MINMEA_MAX_LENGTH];
+
+  // this all seems quite inefficient. Lots of copying of strings.
+
+  // copy the buffer
+  strncpy( nmeaLine, bufferLine, sizeof(nmeaLine) -1);
+  // add a carriage return
+  strcat(nmeaLine, "\n");
+
+  // now parse the sentence
+  enum minmea_sentence_id sentence_id = minmea_sentence_id(nmeaLine, false);
+
+
+}
+
+void gps_read_cb(int uart_no,size_t rx_available) {
+  struct mbuf rx_buffer;
+
+
+  LOG(LL_DEBUG,("Reading %d from UART buffer",rx_available));  
+
+  // defensive check, this shouldn't happen
+  if (rx_available ==0) {
+    return;
+  }
+
+  // initialize the buffer
+  mbuf_init(&rx_buffer, 0);
+
+  // read from the UART into the buffer
+  mgos_uart_read_mbuf(uart_no,&rx_buffer,rx_available);
+
+  // if we've got anything in our buffer
+  if (rx_buffer.len > 0) {
+    
+    char *bufferLine;
+
+    // separate the string on the linefeed
+    bufferLine = strtok(rx_buffer.buf, "\n");
+    while (bufferLine != NULL) {
+      parseNmeaString(bufferLine);
+      bufferLine = strtok(rx_buffer.buf, "\n");
+    }
+
+  }
+}
+
 void gps2_uart_dispatcher(int uart_no, void *arg){
     struct gps2 *gps_dev;
+    size_t rx_available;
 
     gps_dev = arg;
 
     // check that we've got the create uart
     assert(gps_dev->uart_no == uart_no);
 
+    // find out how many bytes are available to read
+    rx_available = mgos_uart_read_avail(uart_no);
 
+    // if we've got anything to read, call our read function
+    if (rx_available > 0) {
+      
+
+      gps_read_cb(uart_no,rx_available);
+    }
 
 }
 
@@ -58,7 +115,7 @@ struct gps2 *gps2_create_uart(
     // initialize UART
     
     mgos_uart_config_set_defaults(gps_dev->uart_no, &ucfg);
-    ucfg.baud_rate = cfg->uart_no;
+    ucfg.baud_rate = cfg->uart_baud_rate;
 
     // these are all hard coded. The alternative would be
     // to define the UART in the calling client. 
@@ -69,17 +126,20 @@ struct gps2 *gps2_create_uart(
     ucfg.tx_buf_size = 128;
 
     if (!mgos_uart_configure(gps_dev->uart_no, &ucfg)) goto err;
-    mgos_uart_set_rx_enabled(gps_dev->uart_no, true);
+    
+    LOG(LL_DEBUG,("Debug logging statament"));
 
     LOG(LL_INFO, ("UART%d initialized %u,%d%c%d", gps_dev->uart_no, ucfg.baud_rate,
                 ucfg.num_data_bits,
                 ucfg.parity == MGOS_UART_PARITY_NONE ? 'N' : ucfg.parity + '0',
                 ucfg.stop_bits));
 
+    // set our callback for the UART for the GPS
     mgos_uart_set_dispatcher(gps_dev->uart_no,gps2_uart_dispatcher,gps_dev);
+    
+    mgos_uart_set_rx_enabled(gps_dev->uart_no, true);
 
-
-    LOG(LL_INFO, ("Initialized GPS module"));
+    LOG(LL_INFO, ("Initialized GPS device"));
     if (gps_dev->handler) {
           gps_dev->handler(gps_dev, 
           GPS_EV_INITIALIZED, 
