@@ -72,12 +72,43 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
 void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_available) {
 
 
-    struct mbuf uart_rx_buffer;
 
-    uart_rx_buffer = * gps_dev->uart_rx_buffer;
+    LOG(LL_DEBUG,("Buffer address is %x",(size_t)gps_dev->uart_rx_buffer));
 
-    // read the buffer into our line buffer.
-    mgos_uart_read_mbuf(uart_no,&uart_rx_buffer,rx_available);
+    // check the size of our buffer
+    /*
+    LOG(LL_DEBUG,("Buffer address is %x, size is %d, buffer length is %d, rx available is: %d",
+      (size_t)gps_dev->uart_rx_buffer,
+      *(gps_dev->uart_rx_buffer).size, 
+      *(gps_dev->uart_rx_buffer).len,
+      rx_available));
+    */
+
+   struct mbuf uart_rx_buffer;
+
+   uart_rx_buffer = *gps_dev->uart_rx_buffer;
+
+
+   LOG(LL_DEBUG,("Buffer address is %x, buffer size is %d",
+      (size_t)&uart_rx_buffer,
+      gps_dev->uart_rx_buffer->size));
+
+
+    LOG(LL_DEBUG,("UART no is %d, rx_available is: %d",uart_no, rx_available));
+    return;
+    
+
+    // read the UART into our line buffer.
+    mgos_uart_read_mbuf(uart_no,gps_dev->uart_rx_buffer,rx_available);
+    LOG(LL_DEBUG,("Successfully read the UART buffer into our rx buffer"));
+    return;
+    
+
+    // output the contents of the buffer
+
+    LOG(LL_DEBUG,("Buffer contents is %s",mg_mk_str_n(gps_dev->uart_rx_buffer->buf,gps_dev->uart_rx_buffer->len).p));
+    return;
+
 
     size_t line_length;
     char *terminator_ptr;
@@ -85,19 +116,19 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
     
 
     // if we've got anything in the buffer, look for the first "\n"
-    if (uart_rx_buffer.len > 0)
+    if (gps_dev->uart_rx_buffer->len > 0)
     {
       
      
 
-      terminator_ptr = strstr(uart_rx_buffer.buf,"\n");
+      terminator_ptr = strstr(gps_dev->uart_rx_buffer->buf,"\n");
       
       while (terminator_ptr != NULL)
       {
         LOG(LL_DEBUG,("We've got a string to read"));
 
         /* calculate the length of the line using pointer arithmetic */
-        line_length = terminator_ptr - uart_rx_buffer.buf;
+        line_length = terminator_ptr - gps_dev->uart_rx_buffer->buf;
 
         /* create the string of the line*/
         //struct mg_str line = mg_mk_str_n(uart_rx_buffer.buf, line_length);
@@ -132,11 +163,10 @@ void gps2_uart_dispatcher(int uart_no, void *arg){
 
     // if we've got something to read, process it now
     if (rx_available > 0) {
-      LOG(LL_DEBUG,("Rx data to read"));
-      /*
+      
 
       gps2_uart_rx_callback(uart_no,gps_dev,rx_available);
-      */
+      
     }
  
 
@@ -182,8 +212,22 @@ struct gps2 *gps2_create_uart(
     /* initialize a line buffer */
     
     mbuf_init(&uart_rx_buffer,0);
+
+
+
+    LOG(LL_DEBUG,("On initialization, buffer address is %x, size is %d, buffer length is %d",
+      (int)&uart_rx_buffer,
+      uart_rx_buffer.size, 
+      uart_rx_buffer.len));
     /* and set out gps_Dev to point to it */
     gps_dev->uart_rx_buffer = &uart_rx_buffer;
+
+    size_t uart_rx_buffer_ptr;
+
+    uart_rx_buffer_ptr = (size_t)gps_dev->uart_rx_buffer;
+
+    LOG(LL_DEBUG,("And buffer address is now %x",
+      (size_t)uart_rx_buffer_ptr));
 
     
     if (!mgos_uart_configure(gps_dev->uart_no, &ucfg)) goto err;
