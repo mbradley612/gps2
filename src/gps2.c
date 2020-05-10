@@ -20,18 +20,35 @@
 
 #include "minmea.h"
 
-void parseNmeaString(char *bufferLine, struct gps2 *gps_dev) {
-  char nmeaLine[MINMEA_MAX_LENGTH];
+struct latest_gps_info {
+  int satellites_tracked;
+};
 
-  // this all seems quite inefficient. Lots of copying of strings.
+
+struct gps2 {
+  uint8_t uart_no;
+  gps2_ev_handler handler;
+  void *handler_user_data;
+  struct latest_gps_info latest_info;
+  struct mbuf *uart_rx_buffer; 
+  
+
+};
+
+void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
+  
+
 
   // now parse the sentence
-  enum minmea_sentence_id sentence_id = minmea_sentence_id(bufferLine, false);
-
+  /*
+  enum minmea_sentence_id sentence_id = minmea_sentence_id(lineNmea, false);
+  */
   // and log the result
-  LOG(LL_DEBUG,("NMEA sentence id: %d",sentence_id));
-
-  (void)nmeaLine;
+  /*
+  LOG(LL_DEBUG,("NMEA sentence id: %s",line.p));
+*/
+  LOG(LL_DEBUG,("NMEA sentence: %s",line.p));
+  (void)gps_dev;
 
 }
 
@@ -40,43 +57,88 @@ void parseNmeaString(char *bufferLine, struct gps2 *gps_dev) {
 // NMEA strings end CR LF i.e. "\n"
 // see https://en.wikipedia.org/wiki/NMEA_0183
 
+// take a look at example-uart-c uart_dispatcher. Note the comment:
+/*
+ * Dispatcher can be invoked with any amount of data (even none at all) and
+ * at any time. Here we demonstrate how to process input line by line.
+ * 
+ * It looks like mgos_uart_read_mbuf appends the read to the _end_ of the
+ * buffer. mbuf_remove then removes the string from the buffer.
+ * 
+ * So I think we need to look for a "\n", copy that 
+ * 
+ */
+
+void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_available) {
+
+
+    struct mbuf uart_rx_buffer;
+
+    uart_rx_buffer = * gps_dev->uart_rx_buffer;
+
+    // read the buffer into our line buffer.
+    mgos_uart_read_mbuf(uart_no,&uart_rx_buffer,rx_available);
+
+    size_t line_length;
+    char *terminator_ptr;
+  
+    
+
+    // if we've got anything in the buffer, look for the first "\n"
+    if (uart_rx_buffer.len > 0)
+    {
+      
+     
+
+      terminator_ptr = strstr(uart_rx_buffer.buf,"\n");
+      
+      while (terminator_ptr != NULL)
+      {
+        LOG(LL_DEBUG,("We've got a string to read"));
+
+        /* calculate the length of the line using pointer arithmetic */
+        line_length = terminator_ptr - uart_rx_buffer.buf;
+
+        /* create the string of the line*/
+        //struct mg_str line = mg_mk_str_n(uart_rx_buffer.buf, line_length);
+        
+        /* parse the line */
+        //parseNmeaString(line, gps_dev);
+
+        /* free the mg_str struct for the line */
+        
+        //mg_strfree(&line);
+        
+        /* remove the line from the beginning of the buffer */
+        // mbuf_remove(&uart_rx_buffer, line_length);
+        // terminator_ptr = strstr(uart_rx_buffer.buf,"\n");
+      }
+    }
+    // 
+
+}
+
 void gps2_uart_dispatcher(int uart_no, void *arg){
     struct gps2 *gps_dev;
     size_t rx_available;
-    struct mbuf rx_buffer;
     
     gps_dev = arg;
 
-    // check that we've got the create uart
+    // check that we've got the correct uart
     assert(gps_dev->uart_no == uart_no);
 
     // find out how many bytes are available to read
     rx_available = mgos_uart_read_avail(uart_no);
 
-    // if there's nothing to read, return now
-    if (rx_available ==0) {
-      return;
+    // if we've got something to read, process it now
+    if (rx_available > 0) {
+      LOG(LL_DEBUG,("Rx data to read"));
+      /*
+
+      gps2_uart_rx_callback(uart_no,gps_dev,rx_available);
+      */
     }
-
-    // initialize the buffer
-    mbuf_init(&rx_buffer,rx_available);
-
-    // read the buffer
-    mgos_uart_read_mbuf(uart_no,&rx_buffer,rx_available);
-
-    // if we've got anything in the buffer, tokenize on "\n"
-    if (rx_buffer.len > 0)
-    {
-      char *buffer_line;
-      buffer_line = strtok(rx_buffer.buf, "\n");
-      while (buffer_line != NULL)
-      {
-        LOG(LL_DEBUG,("GPS lineNmea: %s", buffer_line));
-        parseNmeaString(buffer_line, gps_dev);
-      }
-    }
-    // 
-    mbuf_free(&rx_buffer);
+ 
 
 }
 
@@ -93,6 +155,7 @@ struct gps2 *gps2_create_uart(
 
     struct gps2 *gps_dev = calloc(1, sizeof(struct gps2));
     struct mgos_uart_config ucfg;
+    struct mbuf uart_rx_buffer;
 
     // if we didn't get a conf or we didn't allocate
     // memory for our device, return null
@@ -116,9 +179,15 @@ struct gps2 *gps2_create_uart(
     ucfg.rx_buf_size = 512;
     ucfg.tx_buf_size = 128;
 
+    /* initialize a line buffer */
+    
+    mbuf_init(&uart_rx_buffer,0);
+    /* and set out gps_Dev to point to it */
+    gps_dev->uart_rx_buffer = &uart_rx_buffer;
+
+    
     if (!mgos_uart_configure(gps_dev->uart_no, &ucfg)) goto err;
     
-    LOG(LL_DEBUG,("Debug logging statament"));
 
     LOG(LL_INFO, ("UART%d initialized %u,%d%c%d", gps_dev->uart_no, ucfg.baud_rate,
                 ucfg.num_data_bits,

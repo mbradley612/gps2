@@ -24,7 +24,7 @@ enum GPS_EVENT {
   GPS_EV_INITIALIZED = EVENT_GRP_GPS,
   GPS_EV_LOCATION_UPDATE,
   GPS_EV_FIX_ACQUIRED,
-  GPS_EV_FIX_LOST
+  GPS_EV_FIX_LOST,
 };
 
 
@@ -71,12 +71,7 @@ struct gps2_cfg {
 
 };
 
-struct gps2 {
-  uint8_t uart_no;
-  gps2_ev_handler handler;
-  void *handler_user_data;
-
-};
+struct gps2;
 
 void gps2_config_set_default(struct gps2_cfg *cfg);
 
