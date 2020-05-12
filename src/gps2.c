@@ -73,30 +73,12 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
 
 
 
-    LOG(LL_DEBUG,("Buffer address is %x",(int)gps_dev->uart_rx_buffer)); 
 
-    LOG(LL_DEBUG,("Buffer address is %x",(int)(*gps_dev).uart_rx_buffer));
-
-    // check the size of our buffer
-    /*
-    LOG(LL_DEBUG,("Buffer address is %x, size is %d, buffer length is %d, rx available is: %d",
-      (size_t)gps_dev->uart_rx_buffer,
-      *(gps_dev->uart_rx_buffer).size, 
-      *(gps_dev->uart_rx_buffer).len,
-      rx_available));
-    */
-
-   struct mbuf *uart_rx_buffer;
-
-   uart_rx_buffer = gps_dev->uart_rx_buffer;
-
-
-   LOG(LL_DEBUG,("Buffer address is %x, buffer size is %d",
-      (int)&uart_rx_buffer,
-      gps_dev->uart_rx_buffer->size));
 
 
     LOG(LL_DEBUG,("UART no is %d, rx_available is: %d",uart_no, rx_available));
+
+    LOG(LL_DEBUG,("Buffer length is currently: %d",gps_dev->uart_rx_buffer->len));
     
     
 
@@ -108,8 +90,7 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
 
     // output the contents of the buffer
 
-    LOG(LL_DEBUG,("Buffer contents is %s",mg_mk_str_n(gps_dev->uart_rx_buffer->buf,gps_dev->uart_rx_buffer->len).p));
-    return;
+    LOG(LL_DEBUG,("Buffer length is %d",gps_dev->uart_rx_buffer->len));
 
 
     size_t line_length;
@@ -118,8 +99,8 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
     
 
     // if we've got anything in the buffer, look for the first "\n"
-    if (gps_dev->uart_rx_buffer->len > 0)
-    {
+    if (gps_dev->uart_rx_buffer->len > 0) {
+      LOG(LL_DEBUG,("Searching our UART rx buffer for a newline."));
       
      
 
@@ -127,24 +108,25 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
       
       while (terminator_ptr != NULL)
       {
-        LOG(LL_DEBUG,("We've got a string to read"));
+        LOG(LL_DEBUG,("We've found the line: %s",terminator_ptr));
 
         /* calculate the length of the line using pointer arithmetic */
-        line_length = terminator_ptr - gps_dev->uart_rx_buffer->buf;
+        line_length = (terminator_ptr - gps_dev->uart_rx_buffer->buf);
+
+        LOG(LL_DEBUG,("We've found a line of length: %d",line_length));
 
         /* create the string of the line*/
-        //struct mg_str line = mg_mk_str_n(uart_rx_buffer.buf, line_length);
+        struct mg_str line = mg_mk_str_n(gps_dev->uart_rx_buffer->buf, line_length);
+
+        LOG(LL_DEBUG,("Line is %s",line.p));
         
         /* parse the line */
         //parseNmeaString(line, gps_dev);
 
-        /* free the mg_str struct for the line */
-        
-        //mg_strfree(&line);
         
         /* remove the line from the beginning of the buffer */
-        // mbuf_remove(&uart_rx_buffer, line_length);
-        // terminator_ptr = strstr(uart_rx_buffer.buf,"\n");
+        mbuf_remove(gps_dev->uart_rx_buffer, line_length);
+        terminator_ptr = strstr(gps_dev->uart_rx_buffer->buf,"\n");
       }
     }
     // 
