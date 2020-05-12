@@ -27,8 +27,8 @@ struct latest_gps_info {
 
 struct gps2 {
   uint8_t uart_no;
-  gps2_ev_handler handler;
-  void *handler_user_data;
+  gps2_ev_handler handler; //shouldn't be here
+  void *handler_user_data; // shouldn't be here
   struct latest_gps_info latest_info;
   struct mbuf *uart_rx_buffer; 
   
@@ -73,7 +73,9 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
 
 
 
-    LOG(LL_DEBUG,("Buffer address is %x",(size_t)gps_dev->uart_rx_buffer));
+    LOG(LL_DEBUG,("Buffer address is %x",(int)gps_dev->uart_rx_buffer)); 
+
+    LOG(LL_DEBUG,("Buffer address is %x",(int)(*gps_dev).uart_rx_buffer));
 
     // check the size of our buffer
     /*
@@ -84,24 +86,24 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
       rx_available));
     */
 
-   struct mbuf uart_rx_buffer;
+   struct mbuf *uart_rx_buffer;
 
-   uart_rx_buffer = *gps_dev->uart_rx_buffer;
+   uart_rx_buffer = gps_dev->uart_rx_buffer;
 
 
    LOG(LL_DEBUG,("Buffer address is %x, buffer size is %d",
-      (size_t)&uart_rx_buffer,
+      (int)&uart_rx_buffer,
       gps_dev->uart_rx_buffer->size));
 
 
     LOG(LL_DEBUG,("UART no is %d, rx_available is: %d",uart_no, rx_available));
-    return;
+    
     
 
     // read the UART into our line buffer.
     mgos_uart_read_mbuf(uart_no,gps_dev->uart_rx_buffer,rx_available);
     LOG(LL_DEBUG,("Successfully read the UART buffer into our rx buffer"));
-    return;
+    
     
 
     // output the contents of the buffer
@@ -185,7 +187,10 @@ struct gps2 *gps2_create_uart(
 
     struct gps2 *gps_dev = calloc(1, sizeof(struct gps2));
     struct mgos_uart_config ucfg;
-    struct mbuf uart_rx_buffer;
+    
+    struct mbuf *uart_rx_buffer = calloc(1, sizeof(struct mbuf));
+
+    
 
     // if we didn't get a conf or we didn't allocate
     // memory for our device, return null
@@ -211,16 +216,16 @@ struct gps2 *gps2_create_uart(
 
     /* initialize a line buffer */
     
-    mbuf_init(&uart_rx_buffer,0);
+    mbuf_init(uart_rx_buffer,512);
 
 
 
     LOG(LL_DEBUG,("On initialization, buffer address is %x, size is %d, buffer length is %d",
-      (int)&uart_rx_buffer,
-      uart_rx_buffer.size, 
-      uart_rx_buffer.len));
+      (int)uart_rx_buffer,
+      uart_rx_buffer->size, 
+      uart_rx_buffer->len));
     /* and set out gps_Dev to point to it */
-    gps_dev->uart_rx_buffer = &uart_rx_buffer;
+    gps_dev->uart_rx_buffer = uart_rx_buffer;
 
     size_t uart_rx_buffer_ptr;
 
