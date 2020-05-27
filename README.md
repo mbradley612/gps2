@@ -5,16 +5,27 @@ This library provides for Mongoose OS a wrapper for minmea GPS library, https://
 1. Connnects to the GPS chip using UART (and could support other connection types)
 2. Provides an Event API to the supported sentences in minmea, and fires the event when the sentence is received:
 
-* RMC (Recommended Minimum: position, velocity, time)
-* GGA (Fix Data)
-* GSA (DOP and active satellites)
-* GLL (Geographic Position: Latitude/Longitude)
-* GST (Pseudorange Noise Statistics)
-* GSV (Satellites in view)
-* VTG (Track made good and Ground speed)
-* ZDA (Time & Date - UTC, day, month, year and local time zone)
 
-3. Provides a synchronous API to query for the latest information from the GPS.
+3. Provides a synchronous API to query for the latest information from the GPS. This API is based on TinyGPS:
+
+```C
+long lat, lon;
+unsigned long fix_age, time, date, speed, course;
+unsigned long chars;
+unsigned short sentences, failed_checksum;
+
+/* retrieves +/- lat/long in 100000ths of a degree */
+gps.get_position(&lat, &lon, &fix_age);
+ 
+/* time in hhmmsscc, date in ddmmyy */
+gps.get_datetime(&date, &time, &fix_age);
+ 
+/* returns speed in 100ths of a knot */
+speed = gps.speed();
+ 
+/* course in 100ths of a degree */
+course = gps.course();
+```
 
 4. Provides an RPC API for the latest information from the GPS.
 primitives

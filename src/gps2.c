@@ -38,16 +38,16 @@ struct gps2 {
 void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
   
 
-
-  // now parse the sentence
-  /*
-  enum minmea_sentence_id sentence_id = minmea_sentence_id(lineNmea, false);
-  */
-  // and log the result
-  /*
-  LOG(LL_DEBUG,("NMEA sentence id: %s",line.p));
-*/
-  LOG(LL_DEBUG,("NMEA sentence: %s",line.p));
+  enum minmea_sentence_id sentence_id;
+  
+  /* parse the sentence */
+  sentence_id = minmea_sentence_id(line.p, false);
+  
+  if (sentence_id) {
+    LOG(LL_DEBUG,("NMEA sentence id: %d",sentence_id));
+  } else {
+    LOG(LL_DEBUG,("NMEA library failed to parse sentence"));
+  }
   (void)gps_dev;
 
 }
@@ -104,7 +104,7 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
       LOG(LL_DEBUG,("Line is %s",line_buffer_nul.p));
 
       /* parse the line */
-      //parseNmeaString(line, gps_dev);
+      parseNmeaString(line_buffer_nul, gps_dev);
 
       /* free out line_buffer_nul */
       mg_strfree(&line_buffer_nul);
@@ -192,10 +192,7 @@ struct gps2 *gps2_create_uart(
 
 
 
-    LOG(LL_DEBUG,("On initialization, buffer address is %x, size is %d, buffer length is %d",
-      (int)uart_rx_buffer,
-      uart_rx_buffer->size, 
-      uart_rx_buffer->len));
+    
     /* and set out gps_Dev to point to it */
     gps_dev->uart_rx_buffer = uart_rx_buffer;
 
@@ -203,8 +200,6 @@ struct gps2 *gps2_create_uart(
 
     uart_rx_buffer_ptr = (size_t)gps_dev->uart_rx_buffer;
 
-    LOG(LL_DEBUG,("And buffer address is now %x",
-      (size_t)uart_rx_buffer_ptr));
 
     
     if (!mgos_uart_configure(gps_dev->uart_no, &ucfg)) goto err;
