@@ -22,44 +22,31 @@
 #include "minmea.h"
 
 struct gps_position {
-  float lat;
-  float lon;
-  int64_t timestamp;
+  unsigned long lat;
+  unsigned long lon;
+  unsigned long timestamp;
 };
 
 struct gps_datetime {
-  uint8_t day;
-  uint8_t month;
-  uint8_t year;
-  uint8_t hours;
-  uint8_t minutes;
-  uint8_t seconds;
-  uint8_t microseconds;
-
-  int64_t timestamp;
+  unsigned long date;
+  unsigned long time;
+  unsigned long timestamp;
 };
 
 struct gps_speed {
-  double speed;
-  int64_t timestamp;
+  unsigned long speed;
+  unsigned long timestamp;
 };
 
 struct gps_course {
-  float course;
-  int64_t timestamp;
+  unsigned long course;
+  unsigned long timestamp;
 };
 
 struct gps_satellites {
-  short satellites_tracked;
-  int64_t timestamp;
+  short satellites;
+  unsigned long timestamp;
 };
-
-struct gps_fix_quality {
-  int fix_quality;
-  int64_t timestamp;
-};
-
-
 
 
 struct gps2 {
@@ -72,154 +59,16 @@ struct gps2 {
   struct gps_speed speed;
   struct gps_course course;
   struct gps_satellites satellites;
-  struct gps_fix_quality fix_quality;
 
 };
 
-
-
-
-
-/* lat/long in MILLIONTHs of a degree and age of fix in milliseconds */
-void gps2_get_position(struct gps2 *dev, float *lat, float *lon, int64_t *fix_age) {
-  *lat = dev->position.lat;
-  *lon = dev->position.lon;
-  *fix_age = mgos_uptime_micros() - dev->position.timestamp;
-}
-
-
-/* date in last full GPRMC sentence */
-void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *hours, int *minutes, int *seconds, int *microseconds, int64_t *age ) {
-  *year = dev->datetime.year;
-  *month = dev->datetime.month;
-  *day = dev->datetime.day;
-  *hours = dev->datetime.hours;
-  *minutes = dev->datetime.minutes;
-  *seconds = dev->datetime.seconds;
-  *microseconds = dev->datetime.microseconds;
-  *age = mgos_uptime_micros() - dev->datetime.timestamp;
-}
- 
-/* speed in last full GPRMC sentence in 100ths of a knot */
-void gps2_get_speed(struct gps2 *dev, double *speed, int64_t *age) {
-  *speed = dev->speed.speed;
-  *age = mgos_uptime_micros()  - dev->speed.timestamp;
-}
- 
-/* course in last full GPRMC sentence in 100th of a degree */
-void gps2_get_course(struct gps2 *dev, double *course, int64_t *age) {
-  *course = dev->course.course;
-  *age = mgos_uptime_micros()  - dev->course.timestamp;
-}
-
-/* satellites used in last full GPGGA sentence */
-void gps2_get_satellites(struct gps2 *dev, int *satellites_tracked, int64_t *age) {
-  *satellites_tracked = dev->satellites.satellites_tracked;
-  *age = mgos_uptime_micros()  - dev->satellites.timestamp;
-
-}
-
-/* fix quality in last full GPGGA sentence */
-void gps2_get_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *age) {
-  *fix_quality = dev->fix_quality.fix_quality;
-  *age = mgos_uptime_micros()  - dev->fix_quality.timestamp;
-
-}
-
-
 void process_rmc_frame(struct gps2 *gps_dev, struct minmea_sentence_rmc rmc_frame) {
-
-  LOG(LL_DEBUG,("Processing RMC frame"));
-  gps_dev->position.lat = minmea_tocoord(&rmc_frame.latitude);
-  gps_dev->position.lon = minmea_tocoord(&rmc_frame.longitude);
-  gps_dev->position.timestamp = mgos_uptime_micros();
+  gps_dev->position.lat = rmc_frame.latitude.value;
+  gps_dev->position.lon = rmc_frame.longitude.value;
+  gps_dev->position.timestamp = mgos_uptime() / 1000;
   /* speed */
-  gps_dev->speed.speed = minmea_tofloat(&rmc_frame.speed);
-  gps_dev->speed.timestamp = mgos_uptime_micros();
   /* course */
-  gps_dev->course.course = minmea_tofloat(&rmc_frame.course);
-  gps_dev->course.timestamp = mgos_uptime_micros();
-  /* date time */
-  gps_dev->datetime.day = rmc_frame.date.day;
-  gps_dev->datetime.month = rmc_frame.date.month;
-  gps_dev->datetime.year = rmc_frame.date.year;
-  gps_dev->datetime.hours = rmc_frame.time.hours;
-  gps_dev->datetime.minutes = rmc_frame.time.minutes;
-  gps_dev->datetime.seconds = rmc_frame.time.seconds;
-  gps_dev->datetime.microseconds = rmc_frame.time.microseconds;
-  gps_dev->datetime.timestamp = mgos_uptime_micros();
-
-  if (gps_dev->handler) {
-      /* Tell our handler that we've got a location update*/
-        gps_dev->handler(gps_dev, 
-          GPS_EV_LOCATION_UPDATE, 
-          NULL,
-          gps_dev->handler_user_data);
-      /* Tell our handler that we've got a datetime update*/
-        gps_dev->handler(gps_dev, 
-            GPS_EV_DATETIME_UPDATE, 
-            NULL,
-            gps_dev->handler_user_data);  
-      
-    }
-}
-
-void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_frame) {
-
-  int previous_fix_quality;
-
-  LOG(LL_DEBUG,("Processing RMC frame"));
-  gps_dev->position.lat = minmea_tocoord(&gga_frame.latitude);
-  gps_dev->position.lon = minmea_tocoord(&gga_frame.longitude);
-  gps_dev->position.timestamp = mgos_uptime_micros();
-
-   /* satellites tracked */
-  gps_dev->satellites.satellites_tracked = gga_frame.satellites_tracked;
-  gps_dev->satellites.timestamp = mgos_uptime_micros();
-
-    /* fix quality */
-  previous_fix_quality = gps_dev->fix_quality.fix_quality;
-  gps_dev->fix_quality.fix_quality = gga_frame.fix_quality;
-
-
-
-  if (gps_dev->handler) {
-      /* Tell our handler that we've got a location update*/
-        gps_dev->handler(gps_dev, 
-          GPS_EV_LOCATION_UPDATE, 
-          NULL,
-          gps_dev->handler_user_data);
-      
-      
-    }
-  
-
-  /* check if we've just lost our fix */
-  if (gga_frame.fix_quality ==0 && previous_fix_quality >0) {
-    if (gps_dev->handler) {
-      /* Tell our handler that we've lost our fix*/
-        gps_dev->handler(gps_dev, 
-            GPS_EV_FIX_LOST, 
-            NULL,
-            gps_dev->handler_user_data);  
-      
-    }
-
-  }
-
-  /* check if we've aquired our fix */
-  if (gga_frame.fix_quality > 0 && previous_fix_quality ==0) {
-    if (gps_dev->handler) {
-      /* Tell our handler that we've got a fix */
-        gps_dev->handler(gps_dev, 
-          GPS_EV_FIX_ACQUIRED, 
-          NULL,
-          gps_dev->handler_user_data);
-      
-      
-    }
-  }
-
+  /* date */
 }
 
 void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
@@ -233,20 +82,10 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
   switch (sentence_id) {
     case MINMEA_SENTENCE_RMC: {
       struct minmea_sentence_rmc frame;
-      if (minmea_parse_rmc(&frame, line.p)) {
+      if (minmea_parse_rmc(&frame, line)) {
         process_rmc_frame(gps_dev, frame);
       }
-    } break;
-    case MINMEA_SENTENCE_GGA: {
-      struct minmea_sentence_gga frame;
-      if (minmea_parse_gga(&frame, line.p)) {
-        process_gga_frame(gps_dev, frame);
-      }
-    } break;
-    default: {
-      /* do nothing */
-      ;
-    } break;
+    }
   }
   
   if (sentence_id) {
@@ -257,6 +96,23 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
   (void)gps_dev;
 
 }
+
+
+/* lat/long in MILLIONTHs of a degree and age of fix in milliseconds */
+void gps2_get_position(struct gps2 *dev, unsigned long lat, unsigned long lon, unsigned long fix_age);
+ 
+/* date as ddmmyy, time as hhmmsscc, and age in milliseconds */
+/* check, is there an mgos preferred way of handling date and time? */
+void gps2_get_datetime(struct gps2 *dev, unsigned long date, unsigned long time, unsigned long age);
+ 
+/* speed in last full GPRMC sentence in 100ths of a knot */
+void gps2_speed(struct gps2 *dev, unsigned long speed, unsigned long age);
+ 
+/* course in last full GPRMC sentence in 100th of a degree */
+void gps2_course(struct gps2 *dev, unsigned long course, unsigned long age);
+
+/* satellites used in last full GPGGA sentence */
+void gps2_satellites(struct gps2 *dev, unsigned long course, unsigned long age);
 
 
 
@@ -402,6 +258,11 @@ struct gps2 *gps2_create_uart(
     /* and set out gps_Dev to point to it */
     gps_dev->uart_rx_buffer = uart_rx_buffer;
 
+    size_t uart_rx_buffer_ptr;
+
+    uart_rx_buffer_ptr = (size_t)gps_dev->uart_rx_buffer;
+
+
     
     if (!mgos_uart_configure(gps_dev->uart_no, &ucfg)) goto err;
     
@@ -435,7 +296,8 @@ struct gps2 *gps2_create_uart(
 
 
 enum mgos_init_result mgos_gps2_init(void) {
-  
-  return true;
-  
+  if (!mgos_event_register_base(EVENT_GRP_GPS, "gps")) {
+    return MGOS_INIT_OK;
+  }
+  return MGOS_INIT_APP_INIT_FAILED;
 }

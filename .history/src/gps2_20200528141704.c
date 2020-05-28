@@ -81,7 +81,7 @@ struct gps2 {
 
 
 /* lat/long in MILLIONTHs of a degree and age of fix in milliseconds */
-void gps2_get_position(struct gps2 *dev, float *lat, float *lon, int64_t *fix_age) {
+void gps2_get_position(struct gps2 *dev, float *lat, float *lon, double *fix_age) {
   *lat = dev->position.lat;
   *lon = dev->position.lon;
   *fix_age = mgos_uptime_micros() - dev->position.timestamp;
@@ -89,7 +89,7 @@ void gps2_get_position(struct gps2 *dev, float *lat, float *lon, int64_t *fix_ag
 
 
 /* date in last full GPRMC sentence */
-void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *hours, int *minutes, int *seconds, int *microseconds, int64_t *age ) {
+void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *hours, int *minutes, int *seconds, int *microseconds, double *age ) {
   *year = dev->datetime.year;
   *month = dev->datetime.month;
   *day = dev->datetime.day;
@@ -101,26 +101,26 @@ void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *h
 }
  
 /* speed in last full GPRMC sentence in 100ths of a knot */
-void gps2_get_speed(struct gps2 *dev, double *speed, int64_t *age) {
+void gps2_get_speed(struct gps2 *dev, double *speed, double *age) {
   *speed = dev->speed.speed;
   *age = mgos_uptime_micros()  - dev->speed.timestamp;
 }
  
 /* course in last full GPRMC sentence in 100th of a degree */
-void gps2_get_course(struct gps2 *dev, double *course, int64_t *age) {
+void gps2_get_course(struct gps2 *dev, double *course, double *age) {
   *course = dev->course.course;
   *age = mgos_uptime_micros()  - dev->course.timestamp;
 }
 
 /* satellites used in last full GPGGA sentence */
-void gps2_get_satellites(struct gps2 *dev, int *satellites_tracked, int64_t *age) {
+void gps2_get_satellites(struct gps2 *dev, int *satellites_tracked, double *age) {
   *satellites_tracked = dev->satellites.satellites_tracked;
   *age = mgos_uptime_micros()  - dev->satellites.timestamp;
 
 }
 
 /* fix quality in last full GPGGA sentence */
-void gps2_get_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *age) {
+void gps2_get_fix_quality(struct gps2 *dev, int *fix_quality, double *age) {
   *fix_quality = dev->fix_quality.fix_quality;
   *age = mgos_uptime_micros()  - dev->fix_quality.timestamp;
 

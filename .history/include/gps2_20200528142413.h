@@ -51,19 +51,19 @@ void gps2_destroy(struct gps2 *dev);
  
 
 /* lat/long in MILLIONTHs of a degree and age of fix in milliseconds */
-void gps2_get_position(struct gps2 *dev, float *lat,float *lon, int64_t *fix_age);
+void gps2_get_position(struct gps2 *dev, float *lat,float *lon, double *fix_age);
  
 /* date and time */
-void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *hours, int *minutes, int *seconds, int *microseconds, int64_t *age );
+void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *hours, int *minutes, int *seconds, int *microseconds, double *age );
  
 /* speed in last full GPRMC sentence in 100ths of a knot */
-void gps2_get_speed(struct gps2 *dev, double *speed, int64_t *age);
+void gps2_get_speed(struct gps2 *dev, double *speed, double *age);
  
 /* course in last full GPRMC sentence in 100th of a degree */
-void gps2_get_course(struct gps2 *dev, double *course, int64_t *age);
+void gps2_get_course(struct gps2 *dev, double *course, double *age);
 
 /* satellites used in last full GPGGA sentence */
-void gps2_get_satellites(struct gps2 *dev, int *satellites_tracked, int64_t *age);
+void gps2_get_satellites(struct gps2 *dev, int *satellites_tracked, int_64t *age);
 
 /* fix quality in last full GPGGA sentence */
-void gps2_get_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *age);
+void gps2_get_fix_quality(struct gps2 *dev, int *fix_quality, double *age);

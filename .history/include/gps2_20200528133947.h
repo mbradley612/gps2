@@ -51,19 +51,20 @@ void gps2_destroy(struct gps2 *dev);
  
 
 /* lat/long in MILLIONTHs of a degree and age of fix in milliseconds */
-void gps2_get_position(struct gps2 *dev, float *lat,float *lon, int64_t *fix_age);
+void gps2_get_position(struct gps2 *dev, unsigned long *lat, unsigned long *lon, unsigned long *fix_age);
  
-/* date and time */
-void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *hours, int *minutes, int *seconds, int *microseconds, int64_t *age );
+/* date as ddmmyy, time as hhmmsscc, and age in milliseconds */
+/* check, is there an mgos preferred way of handling date and time? */
+void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *hours, int *minutes, int *seconds, int *microseconds, unsigned long *age );
  
 /* speed in last full GPRMC sentence in 100ths of a knot */
-void gps2_get_speed(struct gps2 *dev, double *speed, int64_t *age);
+void gps2_get_speed(struct gps2 *dev, unsigned long *speed, unsigned long *age);
  
 /* course in last full GPRMC sentence in 100th of a degree */
-void gps2_get_course(struct gps2 *dev, double *course, int64_t *age);
+void gps2_get_course(struct gps2 *dev, unsigned long *course, unsigned long *age);
 
 /* satellites used in last full GPGGA sentence */
-void gps2_get_satellites(struct gps2 *dev, int *satellites_tracked, int64_t *age);
+void gps2_get_satellites(struct gps2 *dev, int *satellites_tracked, unsigned long *age);
 
 /* fix quality in last full GPGGA sentence */
-void gps2_get_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *age);
+void gps2_get_fix_quality(struct gps2 *dev, int *fix_quality, unsigned long *age);
