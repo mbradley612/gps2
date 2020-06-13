@@ -101,10 +101,10 @@ void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *h
   *age = mgos_uptime_micros() - dev->datetime.timestamp;
 }
 
-void gps2_get_unixtime(struct gps2 *dev, time_t *unixtime_now, int64_t *microseconds) {
+void gps2_get_unixtime(struct gps2 *dev, time_t *unixtime) {
   struct tm time;
   time_t gps_unixtime;
-  int64_t age;
+  int64_t offset_us;
 
 
   /* construct a time object to represent the last GPRMC sentence from the GPS device */
@@ -120,11 +120,12 @@ void gps2_get_unixtime(struct gps2 *dev, time_t *unixtime_now, int64_t *microsec
   /* turn this into unix time */
   gps_unixtime = mktime(&time);
   
-  age = mgos_uptime_micros() - dev->datetime.timestamp;
+  offset_us = mgos_uptime_micros() - dev->datetime.timestamp;
 
-  *unixtime_now = gps_unixtime + age/1000000;
+  /* add on the reading microseconds, subtract the reading age, converted to milliseconds */
+  *unixtime_now = gps_unixtime + offset_us/1000000;// + ((dev->datetime.microseconds - (mgos_uptime_micros() - dev->datetime.timestamp) )/ 1000);
 
-  *microseconds = age % 1000000;
+  offset_us = offset_us 1000000
 }
  
 /* speed in last full GPRMC sentence in 100ths of a knot */

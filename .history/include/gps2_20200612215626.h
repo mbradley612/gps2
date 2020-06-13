@@ -50,15 +50,12 @@ struct gps2 *gps2_create_uart(struct gps2_cfg *cfg);
 void gps2_destroy(struct gps2 *dev);
  
 
-/* lat/long in degrees and age of fix in milliseconds */
+/* lat/long in MILLIONTHs of a degree and age of fix in milliseconds */
 void gps2_get_position(struct gps2 *dev, float *lat,float *lon, int64_t *fix_age);
  
 /* date and time */
 void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *hours, int *minutes, int *seconds, int *microseconds, int64_t *age );
-
-/* unix time in milliseconds adjusted for age*/
-void gps2_get_unixtime(struct gps2 *dev, time_t *unix_time, int64_t *microseconds);
-
+ 
 /* speed in last full GPRMC sentence in 100ths of a knot */
 /* TODO change to metres per second */
 void gps2_get_speed(struct gps2 *dev, double *speed, int64_t *age);

@@ -101,10 +101,10 @@ void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *h
   *age = mgos_uptime_micros() - dev->datetime.timestamp;
 }
 
-void gps2_get_unixtime(struct gps2 *dev, time_t *unixtime_now, int64_t *microseconds) {
+void gps2_get_unixtime(struct gps2 *dev, time_t *unixtime_now, uint64_t *microseconds) {
   struct tm time;
   time_t gps_unixtime;
-  int64_t age;
+  uint64_t age;
 
 
   /* construct a time object to represent the last GPRMC sentence from the GPS device */
