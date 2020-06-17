@@ -22,8 +22,6 @@
 
 #include "minmea.h"
 
-#define CURRENT_CENTURY 2000
-
 struct gps_position {
   float lat;
   float lon;
@@ -31,13 +29,13 @@ struct gps_position {
 };
 
 struct gps_datetime {
-  int day;
-  int month;
-  int year;
-  int hours;
-  int minutes;
-  int seconds;
-  int microseconds;
+  uint8_t day;
+  uint8_t month;
+  uint8_t year;
+  uint8_t hours;
+  uint8_t minutes;
+  uint8_t seconds;
+  uint8_t microseconds;
 
   int64_t timestamp;
 };
@@ -110,13 +108,14 @@ void gps2_get_unixtime(struct gps2 *dev, time_t *unixtime_now, int64_t *microsec
 
 
   /* construct a time object to represent the last GPRMC sentence from the GPS device */
-  time.tm_year = dev->datetime.year - 1900;
+  time.tm_year = dev->datetime.year - 1970;
   time.tm_mon = dev->datetime.month - 1;
   time.tm_mday = dev->datetime.day;
   
   time.tm_hour = dev->datetime.hours;
   time.tm_min = dev->datetime.minutes;
   time.tm_sec = dev->datetime.seconds;
+  
 
   /* turn this into unix time */
   gps_unixtime = mktime(&time);
@@ -171,7 +170,7 @@ void process_rmc_frame(struct gps2 *gps_dev, struct minmea_sentence_rmc rmc_fram
   /* date time */
   gps_dev->datetime.day = rmc_frame.date.day;
   gps_dev->datetime.month = rmc_frame.date.month;
-  gps_dev->datetime.year = rmc_frame.date.year + CURRENT_CENTURY;
+  gps_dev->datetime.year = rmc_frame.date.year;
   gps_dev->datetime.hours = rmc_frame.time.hours;
   gps_dev->datetime.minutes = rmc_frame.time.minutes;
   gps_dev->datetime.seconds = rmc_frame.time.seconds;

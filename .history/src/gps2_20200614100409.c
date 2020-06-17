@@ -110,7 +110,7 @@ void gps2_get_unixtime(struct gps2 *dev, time_t *unixtime_now, int64_t *microsec
 
 
   /* construct a time object to represent the last GPRMC sentence from the GPS device */
-  time.tm_year = dev->datetime.year - 1900;
+  time.tm_year = dev->datetime.year;
   time.tm_mon = dev->datetime.month - 1;
   time.tm_mday = dev->datetime.day;
   
