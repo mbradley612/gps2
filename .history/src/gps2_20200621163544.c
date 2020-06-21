@@ -370,7 +370,7 @@ struct gps2 *gps2_create_uart(
 
     /* we set the initial size of our receive buffer to the size of the UART receive buffer. It will grow
     automatically if required */
-    mbuf_init(uart_rx_buffer,512);
+    mbuf_init(uart_rx_buffer,ucfg->rx_buf_size);
 
     gps_dev->uart_rx_buffer = uart_rx_buffer;
     
@@ -416,8 +416,8 @@ static struct gps2 *create_global_device(uint8_t uart_no) {
   ucfg.num_data_bits = 8;
   ucfg.parity = MGOS_UART_PARITY_NONE;
   ucfg.stop_bits = MGOS_UART_STOP_BITS_1;
-  ucfg.tx_buf_size = 512; /*mgos_sys_config_get_gps_uart_tx_buffer_size();*/
-  ucfg.rx_buf_size = 128; /*mgos_sys_config_get_gps_uart_rx_buffer_size();*/
+  ucfg.tx_buf_size = mgos_sys_config_get_gps_uart_tx_buffer_size();
+  ucfg.rx_buf_size = mgos_sys_config_get_gps_uart_rx_buffer_size();
 
   global_gps_device = gps2_create_uart(uart_no, &ucfg, NULL, NULL);
 

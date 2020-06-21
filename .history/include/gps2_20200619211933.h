@@ -44,32 +44,32 @@ struct gps2_datetime {
   int seconds;
   int microseconds;  
 
-};
+}
 
 
 typedef void (*gps2_ev_handler)(struct gps2 *gps,
                                             int ev, void *ev_data,
                                             void *user_data);
-                                            
 
 /*
-* Functions for accessing the global instance. The global instance is created
-* automatically if you provide system configuration. The minimum system configuration
-* is to specify the UART number. 
+* Functions for using the global instance
 */
 
 
+/*
+* Functions for managing and accessing individual gps devices
+*/
 
-/* set the event handler for the global device. The handler callback will be called when the GPS is initialized, when a GPS fix
+/* set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
 void gps2_set_ev_handler(gps2_ev_handler handler, void *handler_user_data);
 
 /* location including speed and course and age of fix in milliseconds 
    this is derived from the most recent RMC sentence*/
-void gps2_get_location(struct gps2_location *location, int64_t *fix_age);
+void gps2_get_location( struct gps2_location *location, int64_t *fix_age);
  
 /* date and time */
-void gps2_get_datetime(struct gps2_datetime *datetime, int64_t *age );
+void gps2_get_datetime(s struct gps2_datetime int64_t *age );
 
 /* unix time now in milliseconds and microseconds adjusted for age*/
 void gps2_get_unixtime(time_t *unix_time, int64_t *microseconds);
@@ -78,40 +78,44 @@ void gps2_get_unixtime(time_t *unix_time, int64_t *microseconds);
 void gps2_get_satellites( int *satellites_tracked, int64_t *age);
 
 /* fix quality in last full GPGGA sentence */
-void gps2_global_get_fix_quality(int *fix_quality, int64_t *age);
-
-/* get the global gps2 device. Returns null if creating the UART handler has failed */
-struct gps2 *gps2_get_global_device();
+void gps2_get_fix_quality(int *fix_quality, int64_t *age);
 
 
 
-/*
-* Functions for managing and accessing individual gps devices
-*/
 
+
+struct gps2_cfg {
+  struct mgos_uart_config;
+  gps2_ev_handler handler;
+  void *handler_user_data;
+
+};
 
 struct gps2;
 
-/* create the gps2 device on a uart and set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
+void gps2_config_set_default(struct gps2_cfg *cfg);
+
+struct gps2 *gps2_create_uart(struct gps2_cfg *cfg);
+
+void gps2_destroy(struct gps2 *dev);
+ 
+/* set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
-
-struct gps2 *gps2_create_uart_device(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data);
-
-void gps2_destroy_device(struct gps2 *dev);
+void gps2_set_ev_handler(gps2_ev_handler handler, void *handler_user_data);
 
 /* location including speed and course and age of fix in milliseconds 
    this is derived from the most recent RMC sentence*/
-void gps2_get_device_location(struct gps2 *dev, struct gps2_location *location, int64_t *fix_age);
+void gps2_get_location(struct gps2 *dev, struct gps2_location *location, int64_t *fix_age);
  
 /* date and time */
-void gps2_get_device_datetime(struct gps2 *dev, struct gps2_datetime *datetime, int64_t *age );
+void gps2_get_datetime(struct gps2 *dev, struct gps2_datetime int64_t *age );
 
 /* unix time now in milliseconds and microseconds adjusted for age*/
-void gps2_get_device_unixtime(struct gps2 *dev, time_t *unix_time, int64_t *microseconds);
+void gps2_get_unixtime(struct gps2 *dev, time_t *unix_time, int64_t *microseconds);
 
 /* satellites used in last full GPGGA sentence */
-void gps2_get_device_satellites(struct gps2 *dev, int *satellites_tracked, int64_t *age);
+void gps2_get_satellites(struct gps2 *dev, int *satellites_tracked, int64_t *age);
 
 /* fix quality in last full GPGGA sentence */
-void gps2_get_device_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *age);
+void gps2_get_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *age);
 

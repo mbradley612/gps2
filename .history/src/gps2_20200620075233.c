@@ -274,8 +274,6 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
   size_t line_length;
   const char *terminator_ptr;  
 
-  LOG(LL_DEBUG,("Inside gps2 uart rx callback for UART %i", uart_no));
-
   const struct mg_str crlf = mg_mk_str("\r\n");
 
   /* read the UART into our line buffer. */
@@ -330,8 +328,6 @@ void gps2_uart_dispatcher(int uart_no, void *arg){
     
     gps_dev = arg;
 
-    LOG(LL_DEBUG,("GPS2 UART dispatcher called for UART %i", uart_no));
-
     // check that we've got the correct uart
     assert(gps_dev->uart_no == uart_no);
 
@@ -345,9 +341,6 @@ void gps2_uart_dispatcher(int uart_no, void *arg){
       gps2_uart_rx_callback(uart_no,gps_dev,rx_available);
       
     }
-
-
-    LOG(LL_DEBUG,("GPS2 UART dispatcher exiting for UART %i", uart_no));
  
 
 }
@@ -368,11 +361,15 @@ struct gps2 *gps2_create_uart(
     gps_dev->handler = handler;
     gps_dev->handler_user_data = handler_user_data;
 
+    
+    mgos_uart_config_set_defaults(gps_dev->uart_no, ucfg);
+    
     /* we set the initial size of our receive buffer to the size of the UART receive buffer. It will grow
     automatically if required */
-    mbuf_init(uart_rx_buffer,512);
+    mbuf_init(uart_rx_buffer,ucfg->rx_buf_size);
 
     gps_dev->uart_rx_buffer = uart_rx_buffer;
+
     
     if (!mgos_uart_configure(gps_dev->uart_no, ucfg)) goto err;
     
@@ -406,18 +403,18 @@ struct gps2 *gps2_create_uart(
 
 
 
-static struct gps2 *create_global_device(uint8_t uart_no) {
+struct gps2 *create_global_device(uint8_t uart_no) {
 
   struct mgos_uart_config ucfg;
-
-  mgos_uart_config_set_defaults(uart_no,&ucfg);
   
 
   ucfg.num_data_bits = 8;
   ucfg.parity = MGOS_UART_PARITY_NONE;
   ucfg.stop_bits = MGOS_UART_STOP_BITS_1;
-  ucfg.tx_buf_size = 512; /*mgos_sys_config_get_gps_uart_tx_buffer_size();*/
-  ucfg.rx_buf_size = 128; /*mgos_sys_config_get_gps_uart_rx_buffer_size();*/
+  ucfg.tx_buf_size = mgos_sys_config_get_gps_uart_tx_buffer_size();
+  ucfg.rx_buf_size = mgos_sys_config_get_gps_uart_rx_buffer_size();
+
+  
 
   global_gps_device = gps2_create_uart(uart_no, &ucfg, NULL, NULL);
 
@@ -475,15 +472,12 @@ enum mgos_init_result mgos_gps2_init(void) {
 
   /* check if we have a UART > 0. If so, create the global instance */  
   if (gps_config_uart_no > 0) {
-    if (create_global_device(gps_config_uart_no)) {
-      LOG(LL_INFO,("Successfully created global GPS device on UART %i", gps_config_uart_no));
-    } else {
+    if (create_global_device(gps_config_uart_no) ==NULL) {
       LOG(LL_ERROR,("Failed to create global instance with uart %i",gps_config_uart_no));
       return MGOS_INIT_APP_INIT_FAILED;
     } 
   }
-  LOG(LL_DEBUG,("About to return success from init"));
-  return true;
+  return MGOS_APP_INIT_SUCCESS;
     
   
 }
