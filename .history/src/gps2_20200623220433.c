@@ -408,12 +408,13 @@ static struct gps2 *create_global_device(uint8_t uart_no) {
 
   mgos_uart_config_set_defaults(uart_no,&ucfg);
 
+  
+
   ucfg.num_data_bits = 8;
   ucfg.parity = MGOS_UART_PARITY_NONE;
   ucfg.stop_bits = MGOS_UART_STOP_BITS_1;
-  ucfg.baud_rate  = mgos_sys_config_get_gps_uart_baud();
-  ucfg.tx_buf_size = mgos_sys_config_get_gps_uart_tx_buffer_size();
-  ucfg.rx_buf_size = mgos_sys_config_get_gps_uart_rx_buffer_size();
+  ucfg.tx_buf_size = 512; /*mgos_sys_config_get_gps_uart_tx_buffer_size();*/
+  ucfg.rx_buf_size = 128; /*mgos_sys_config_get_gps_uart_rx_buffer_size();*/
 
   global_gps_device = gps2_create_uart(uart_no, &ucfg, NULL, NULL);
 
@@ -483,9 +484,6 @@ enum mgos_init_result mgos_gps2_init(void) {
     if (create_global_device(gps_config_uart_no)) {
       LOG(LL_INFO,("Successfully created global GPS device on UART %i", gps_config_uart_no));
     } else {
-      if (gps_config_uart_baud ==0) {
-        LOG(LL_ERROR,("You must set the baud rate in config: gps.uart.baud"));
-      }
       LOG(LL_ERROR,("Failed to create global instance with uart %i",gps_config_uart_no));
       return MGOS_INIT_APP_INIT_FAILED;
     } 
