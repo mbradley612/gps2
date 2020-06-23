@@ -14,7 +14,6 @@
 * https://github.com/mongoose-os-libs/fingerprint
 */
 
-#include "mgos.h"
 
 #define GPS_EV_NONE 0x0000
 #define GPS_EV_INITIALIZED 0x0001
@@ -96,7 +95,7 @@ struct gps2;
 /* create the gps2 device on a uart and set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
 
-struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data);
+struct gps2 *gps2_create_uart_device(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data);
 
 void gps2_destroy_device(struct gps2 *dev);
 
@@ -120,5 +119,5 @@ void gps2_get_device_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *ag
 
 /* set the event handler for the global device. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
-void gps2_set_device_ev_handler(struct gps2 *dev, gps2_ev_handler handler, void *handler_user_data);
+void gps2_set_device_ev_handler(gps2_ev_handler handler, void *handler_user_data);
 

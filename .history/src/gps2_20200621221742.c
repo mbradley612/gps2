@@ -274,6 +274,8 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
   size_t line_length;
   const char *terminator_ptr;  
 
+  LOG(LL_DEBUG,("Inside gps2 uart rx callback for UART %i", uart_no));
+
   const struct mg_str crlf = mg_mk_str("\r\n");
 
   /* read the UART into our line buffer. */
@@ -328,6 +330,7 @@ void gps2_uart_dispatcher(int uart_no, void *arg){
     
     gps_dev = arg;
 
+    LOG(LL_DEBUG,("GPS2 UART dispatcher called for UART %i", uart_no));
 
     // check that we've got the correct uart
     assert(gps_dev->uart_no == uart_no);
@@ -344,6 +347,7 @@ void gps2_uart_dispatcher(int uart_no, void *arg){
     }
 
 
+    LOG(LL_DEBUG,("GPS2 UART dispatcher exiting for UART %i", uart_no));
  
 
 }
