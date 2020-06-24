@@ -14,6 +14,7 @@
 * https://github.com/mongoose-os-libs/fingerprint
 */
 
+#include "mgos.h"
 
 #define GPS_EV_NONE 0x0000
 #define GPS_EV_INITIALIZED 0x0001
@@ -27,47 +28,97 @@
 
 struct gps2;
 
-typedef void (*gps2_ev_handler)(struct gps2 *gps,
-                                            int ev, void *ev_data,
-                                            void *user_data);
+struct gps2_location {
+  float latitude;
+  float longitude;
+  double speed;
+  double course;
+  float variation;
+};
 
-
-
-struct gps2_cfg {
-  int8_t uart_no;
-  int32_t uart_baud_rate;
-  gps2_ev_handler handler;
-  void *handler_user_data;
+struct gps2_datetime {
+  int year;
+  int month;
+  int day;
+  int hours;
+  int minutes;
+  int seconds;
+  int microseconds;  
 
 };
 
-struct gps2;
 
-void gps2_config_set_default(struct gps2_cfg *cfg);
+typedef void (*gps2_ev_handler)(struct gps2 *gps,
+                                            int ev, void *ev_data,
+                                            void *user_data);
+                                            
 
-struct gps2 *gps2_create_uart(struct gps2_cfg *cfg);
+/*
+* Functions for accessing the global instance. The global instance is created
+* automatically if you provide system configuration. The minimum system configuration
+* is to specify the UART number. 
+*/
 
-void gps2_destroy(struct gps2 *dev);
- 
 
-/* lat/long in degrees and age of fix in milliseconds */
-void gps2_get_position(struct gps2 *dev, float *lat,float *lon, int64_t *fix_age);
+
+/* set the event handler for the global device. The handler callback will be called when the GPS is initialized, when a GPS fix
+  is acquired or lost and whenever there is a location update */
+void gps2_set_ev_handler(gps2_ev_handler handler, void *handler_user_data);
+
+/* location including speed and course and age of fix in milliseconds 
+   this is derived from the most recent RMC sentence*/
+void gps2_get_location(struct gps2_location *location, int64_t *fix_age);
  
 /* date and time */
-void gps2_get_datetime(struct gps2 *dev, int *year, int *month, int *day, int *hours, int *minutes, int *seconds, int *microseconds, int64_t *age );
+void gps2_get_datetime(struct gps2_datetime *datetime, int64_t *age );
 
-/* unix time in milliseconds adjusted for age*/
-void gps2_get_unixtime(struct gps2 *dev, time_t *unix_time, int64_t *microseconds);
-
-/* speed in last full GPRMC sentence in 100ths of a knot */
-/* TODO change to metres per second */
-void gps2_get_speed(struct gps2 *dev, double *speed, int64_t *age);
- 
-/* course in last full GPRMC sentence in 100th of a degree */
-void gps2_get_course(struct gps2 *dev, double *course, int64_t *age);
+/* unix time now in milliseconds and microseconds adjusted for age*/
+void gps2_get_unixtime(time_t *unix_time, int64_t *microseconds);
 
 /* satellites used in last full GPGGA sentence */
-void gps2_get_satellites(struct gps2 *dev, int *satellites_tracked, int64_t *age);
+void gps2_get_satellites( int *satellites_tracked, int64_t *age);
 
 /* fix quality in last full GPGGA sentence */
-void gps2_get_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *age);
+void gps2_global_get_fix_quality(int *fix_quality, int64_t *age);
+
+/* get the global gps2 device. Returns null if creating the UART handler has failed */
+struct gps2 *gps2_get_global_device();
+
+
+
+/*
+* Functions for managing and accessing individual gps devices
+*/
+
+
+struct gps2;
+
+/* create the gps2 device on a uart and set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
+  is acquired or lost and whenever there is a location update */
+
+struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data);
+
+void gps2_destroy_device(struct gps2 *dev);
+
+/* location including speed and course and age of fix in milliseconds 
+   this is derived from the most recent RMC sentence*/
+void gps2_get_device_location(struct gps2 *dev, struct gps2_location *location, int64_t *fix_age);
+ 
+/* date and time */
+void gps2_get_device_datetime(struct gps2 *dev, struct gps2_datetime *datetime, int64_t *age );
+
+/* unix time now in milliseconds and microseconds adjusted for age*/
+void gps2_get_device_unixtime(struct gps2 *dev, time_t *unix_time, int64_t *microseconds);
+
+/* satellites used in last full GPGGA sentence */
+void gps2_get_device_satellites(struct gps2 *dev, int *satellites_tracked, int64_t *age);
+
+/* fix quality in last full GPGGA sentence */
+void gps2_get_device_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *age);
+
+
+
+/* set the event handler for the global device. The handler callback will be called when the GPS is initialized, when a GPS fix
+  is acquired or lost and whenever there is a location update */
+void gps2_set_device_ev_handler(struct gps2 *dev, gps2_ev_handler handler, void *handler_user_data);
+
