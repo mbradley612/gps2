@@ -92,7 +92,6 @@ void gps2_get_device_unixtime(struct gps2 *dev, time_t *unixtime_now, int64_t *m
 
   /* turn this into unix time */
   gps_unixtime = mktime(&time);
-  LOG(LL_DEBUG,("Time before adjustment: %li",gps_unixtime));
   
   age = mgos_uptime_micros() - dev->datetime_reading.timestamp;
 
@@ -464,7 +463,7 @@ void gps2_get_satellites( int *satellites_tracked, int64_t *age) {
 
 /* fix quality in last full GPGGA sentence */
 void gps2_get_fix_quality(int *fix_quality, int64_t *age) {
-  gps2_get_global_device(gps2_get_global_device(),fix_quality,age);
+  gps2_get_device_fix_quality(gps2_get_global_device(),fix_quality,age);
 }
 
 
