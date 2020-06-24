@@ -79,7 +79,7 @@ void gps2_get_unixtime(time_t *unix_time, int64_t *microseconds);
 void gps2_get_satellites( int *satellites_tracked, int64_t *age);
 
 /* fix quality in last full GPGGA sentence */
-void gps2_global_get_fix_quality(int *fix_quality, int64_t *age);
+void gps2_get_fix_quality(int *fix_quality, int64_t *age);
 
 /* get the global gps2 device. Returns null if creating the UART handler has failed */
 struct gps2 *gps2_get_global_device();
