@@ -23,6 +23,8 @@
 #include "minmea.h"
 
 #define CURRENT_CENTURY 2000
+
+#define GPS2_PMTK 1
  
 
 
@@ -49,7 +51,9 @@ struct gps2 {
   uint8_t uart_no;
   gps2_ev_handler handler; 
   void *handler_user_data; 
-  struct mbuf *uart_rx_buffer; 
+  struct mbuf *uart_rx_buffer;
+  struct mbuf *uart_tx_buffer; 
+  int64_t latest_rx_timestamp;
   struct gps_location_reading location_reading;
   struct gps_datetime_reading datetime_reading;
   struct gps_satellites_reading satellites_reading;
@@ -272,6 +276,7 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
   struct mg_str line_buffer_nul;
   size_t line_length;
   const char *terminator_ptr;  
+  
 
   const struct mg_str crlf = mg_mk_str("\r\n");
 
@@ -299,7 +304,27 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
 
       line_buffer_nul = mg_strdup_nul(line_buffer);
       
-      LOG(LL_DEBUG,("Line is %s",line_buffer_nul.p));
+      LOG(LL_DEBUG,("RX line is %s",line_buffer_nul.p));
+
+
+      /* if we weren't already connected, set connected to 1 and fire a connected event */
+      if (gps_dev->latest_rx_timestamp ==0) {
+        if (gps_dev->handler) {
+      /* Tell our handler that we've lost our fix*/
+        gps_dev->handler(gps_dev, 
+            GPS_EV_CONNECTED, 
+            NULL,
+            gps_dev->handler_user_data);  
+      
+        }
+
+
+      }
+
+      /* set our latest rx timestamp to uptime*/
+      gps_dev->latest_rx_timestamp = mgos_uptime_micros();
+
+      
 
       /* parse the line */
       parseNmeaString(line_buffer_nul, gps_dev);
@@ -324,6 +349,10 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
 void gps2_uart_dispatcher(int uart_no, void *arg){
     struct gps2 *gps_dev;
     size_t rx_available;
+    size_t tx_available;
+    size_t length_to_write;
+    struct mg_str tx_string;
+    struct mg_str tx_string_nul;
     
     gps_dev = arg;
 
@@ -342,17 +371,114 @@ void gps2_uart_dispatcher(int uart_no, void *arg){
       
     }
 
+    /* check if we've got anything to write */
+    if (gps_dev->uart_tx_buffer->len > 0 ) {
+
+      // find out how many bytes are available to write
+      tx_available = mgos_uart_write_avail(uart_no);
+
+      // write what we've got in our tx buffer up to the tx available
+
+      length_to_write = tx_available < gps_dev->uart_tx_buffer->len ? tx_available : gps_dev->uart_tx_buffer->len;
+
+      mgos_uart_write(uart_no,gps_dev->uart_tx_buffer->buf, length_to_write); 
+
+            /* create a string from the line. */
+      tx_string = mg_mk_str_n(gps_dev->uart_tx_buffer->buf, length_to_write);
+
+
+      tx_string_nul = mg_strdup_nul(tx_string);
+      
+      LOG(LL_DEBUG,("UART %i; Length %i; TX line is %s",uart_no, length_to_write, tx_string_nul.p));
+
+
+
+      LOG(LL_DEBUG, ("Before flush TX available is now: %i", mgos_uart_write_avail(uart_no)));
+
+
+      // and flush
+      mgos_uart_flush(uart_no);
+
+
+      LOG(LL_DEBUG, ("After flush TX available is now: %i", mgos_uart_write_avail(uart_no)));
+
+
+
+
+      // remove what we've written from the buffer
+
+      mbuf_remove(gps_dev->uart_tx_buffer,length_to_write);
+
+      /* if we didn't write everything then when the tx buffer empties this dispatcher will be called and we 
+      can can write again */
+
+      // TEST THIS BY SETTING THE TX BUFFER TO BE VERY SMALL
+
+    }
+
 
  
 
 }
 
+void gps2_uart_tx(struct gps2 *gps_dev, struct mbuf buffer) {
+  /* append to the tx buffer */
+  mbuf_append(gps_dev->uart_tx_buffer,buffer.buf,buffer.len);
+
+  /* call the dispatcher */
+  gps2_uart_dispatcher(gps_dev->uart_no, gps_dev);
+
+}
+
+#ifdef GPS2_PMTK
+
+/* this should go into a separate C file with a plugin callback for the NMEA parsing */
+
+void gps2_send_device_pmtk_command(struct gps2 *gps_dev, struct mg_str command_string) {
+
+  struct mbuf command_buffer;
+  struct mg_str crlf;
+
+  crlf = mg_mk_str("\r\n");
+
+  mbuf_init(&command_buffer,command_string.len);
+
+  mbuf_append(&command_buffer,command_string.p,command_string.len);
+
+  mbuf_append(&command_buffer,crlf.p, crlf.len);
+
+  gps2_uart_tx(gps_dev,command_buffer);
+
+
+  
+
+}
+
+/* send a PMTK command_string to the global GPS 
+ 
+ return false if there is no global device
+ 
+  */ 
+
+int gps2_send_pmtk_command(struct mg_str command_string) {
+
+  if (gps2_get_global_device()) {
+    gps2_send_device_pmtk_command(gps2_get_global_device(), command_string);
+    return true;
+  } else{
+    return false;
+  }
+
+}
+
+#endif
 struct gps2 *gps2_create_uart(
   uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data) {
 
     struct gps2 *gps_dev = calloc(1, sizeof(struct gps2));
       
     struct mbuf *uart_rx_buffer = calloc(1, sizeof(struct mbuf));
+    struct mbuf *uart_tx_buffer = calloc(1, sizeof(struct mbuf));
 
     /* check we have a uart config. If not, return null */
     if (ucfg == NULL) {
@@ -368,6 +494,7 @@ struct gps2 *gps2_create_uart(
     mbuf_init(uart_rx_buffer,512);
 
     gps_dev->uart_rx_buffer = uart_rx_buffer;
+    gps_dev->uart_tx_buffer = uart_tx_buffer;
     
     if (!mgos_uart_configure(gps_dev->uart_no, ucfg)) goto err;
     
@@ -381,6 +508,9 @@ struct gps2 *gps2_create_uart(
     mgos_uart_set_dispatcher(gps_dev->uart_no,gps2_uart_dispatcher,gps_dev);
     
     mgos_uart_set_rx_enabled(gps_dev->uart_no, true);
+
+    /* set our latest rx timestamp to 0 */
+    gps_dev->latest_rx_timestamp = 0;
 
     LOG(LL_INFO, ("Initialized GPS device"));
     if (gps_dev->handler) {
