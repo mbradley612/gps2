@@ -4,14 +4,48 @@
 
 #include "mgos.h"
 
-#define GPS_EV_PMKT_ACK 0x0010
 
 
-#define GPS_PMTK_ACK_INVALID_COMMAND 0x0000
-#define GPS_PMTK_ACK_UNSUPPORTED_COMMAND 0x0001
-#define GPS_PMTK_ACK_ACTION_FAILED 0x0002
-#define GPS_PMTK_ACK_ACTION_SUCCEEDED 0x0003
-#define GPS_PMTK_ACK_TIMOUT 0x0009
+#include <stdbool.h>
+
+enum pmtk_sentence_id {
+  PMTK_UNKNOWN = -2,
+  PMTK_INVALID = -1,
+  PMTK_TEST,
+  PMTK_ACK,
+  PMTK_SYS_MSG
+};
+
+enum pmtk_ack_id {
+  PMTK_ACK_INVALID_COMMAND,
+  PMTK_ACK_UNSUPPORTED_COMMAND,
+  PMTK_ACK_ACTION_FAILED,
+  PMTK_ACK_ACTION_SUCCEEDED,
+  
+};
+
+
+#define PMTK_TEST 000
+#define PMTK_ACK 001
+#define PMTK_SYS_MSG 010
+
+
+#define PMTK_ACK_INVALID_COMMAND 0x0000
+#define PMTK_ACK_UNSUPPORTED_COMMAND 0x0001
+#define PMTK_ACK_ACTION_FAILED 0x0002
+#define PMTK_ACK_ACTION_SUCCEEDED 0x0003
+
+
+struct pmtk_sentence_ack {
+  int command_ackd;
+  enum pmtk_ack_id flag;
+};
+
+enum pmtk_sentence_id pmtk_sentence_id(const char *sentence, bool strict);
+
+bool pmtk_parse_ack(struct pmtk_sentence_ack *frame, const char *sentence);
+
+//bool parsePmtkString(const char* line, struct gps2 *gps_dev);
 
 /**
  Different commands to set the update rate from once a second (1 Hz) to 10 times

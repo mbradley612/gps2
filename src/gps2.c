@@ -50,6 +50,7 @@ struct gps_satellites_reading {
 struct gps2 {
   uint8_t uart_no;
   gps2_ev_handler handler; 
+  nmea_parser_plugin nmea_parser_plugin;
   void *handler_user_data; 
   struct mbuf *uart_rx_buffer;
   struct mbuf *uart_tx_buffer; 
@@ -233,9 +234,13 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
   
 
   enum minmea_sentence_id sentence_id;
+  int plugin_sentence_id;
+
   
   /* parse the sentence */
   sentence_id = minmea_sentence_id(line.p, false);
+
+  
 
   switch (sentence_id) {
     case MINMEA_SENTENCE_RMC: {
@@ -250,11 +255,23 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
         process_gga_frame(gps_dev, frame);
       }
     } break;
+    case MINMEA_UNKNOWN: {
+      LOG(LL_DEBUG,("NMEA library says sentence unknown"));
+      /* if we have a plugin parser call it now */
+
+      if (gps_dev->nmea_parser_plugin) {
+        LOG(LL_DEBUG,("Calling plugin sentence parser"));
+        plugin_sentence_id = gps_dev->nmea_parser_plugin(line.p,false);
+
+      } 
+    } break;
     default: {
       /* do nothing */
       ;
     } break;
   }
+
+  
   
   if (sentence_id) {
     LOG(LL_DEBUG,("NMEA sentence id: %d",sentence_id));

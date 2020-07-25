@@ -162,6 +162,8 @@
      int hour_offset;
      int minute_offset;
  };
+
+ struct 
  
  /**
   * Calculate raw sentence checksum. Does not check sentence integrity.

@@ -52,8 +52,14 @@ struct gps2_datetime {
 typedef void (*gps2_ev_handler)(struct gps2 *gps,
                                             int ev, void *ev_data,
                                             void *user_data);
-                                            
 
+                                        
+/* Typedef for a plugin to parse nmea sentences.*/
+
+
+typedef int (*nmea_parser_plugin_sentence_id)(const char* line, bool strict);
+
+typedef bool (*nmea_parser_plugin_)(struct mg_str line, struct gps2 *gps_dev);
 /*
 * Functions for accessing the global instance. The global instance is created
 * automatically if you provide system configuration. The minimum system configuration
