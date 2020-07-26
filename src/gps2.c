@@ -18,7 +18,8 @@
 #include "mgos.h"
 #include "time.h"
 #include "mgos_time.h"
-#include "gps2.h"
+#include "gps2_internal.h"
+
 
 #include "minmea.h"
 
@@ -50,7 +51,6 @@ struct gps_satellites_reading {
 struct gps2 {
   uint8_t uart_no;
   gps2_ev_handler handler; 
-  nmea_parser_plugin nmea_parser_plugin;
   void *handler_user_data; 
   struct mbuf *uart_rx_buffer;
   struct mbuf *uart_tx_buffer; 
@@ -230,11 +230,18 @@ void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_fram
 
 }
 
+void process_pmtk_ack_frame(struct gps2 *gps_dev, struct minmea_pmtk_sentence_ack ack_frame) {
+  // for now just log it
+  // TODO, call the callback for the command defined as a hardware specific structure attached
+  // to the gps2 structure
+
+  LOG(LL_INFO,("Received PMTK ACK for command %d status %d", ack_frame.ackd_command, (int)ack_frame.flag)); 
+}
+
 void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
   
 
   enum minmea_sentence_id sentence_id;
-  int plugin_sentence_id;
 
   
   /* parse the sentence */
@@ -255,15 +262,17 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
         process_gga_frame(gps_dev, frame);
       }
     } break;
+    
+    case MINMEA_PMTK_SENTENCE_ACK: {
+      struct minmea_pmtk_sentence_ack frame;
+      if (minmea_pmtk_parse_ack(&frame, line.p)) {
+        process_pmtk_ack_frame(gps_dev, frame);
+      }
+    }
+    
     case MINMEA_UNKNOWN: {
       LOG(LL_DEBUG,("NMEA library says sentence unknown"));
-      /* if we have a plugin parser call it now */
-
-      if (gps_dev->nmea_parser_plugin) {
-        LOG(LL_DEBUG,("Calling plugin sentence parser"));
-        plugin_sentence_id = gps_dev->nmea_parser_plugin(line.p,false);
-
-      } 
+      
     } break;
     default: {
       /* do nothing */
@@ -447,48 +456,7 @@ void gps2_uart_tx(struct gps2 *gps_dev, struct mbuf buffer) {
 
 }
 
-#ifdef GPS2_PMTK
 
-/* this should go into a separate C file with a plugin callback for the NMEA parsing */
-
-void gps2_send_device_pmtk_command(struct gps2 *gps_dev, struct mg_str command_string) {
-
-  struct mbuf command_buffer;
-  struct mg_str crlf;
-
-  crlf = mg_mk_str("\r\n");
-
-  mbuf_init(&command_buffer,command_string.len);
-
-  mbuf_append(&command_buffer,command_string.p,command_string.len);
-
-  mbuf_append(&command_buffer,crlf.p, crlf.len);
-
-  gps2_uart_tx(gps_dev,command_buffer);
-
-
-  
-
-}
-
-/* send a PMTK command_string to the global GPS 
- 
- return false if there is no global device
- 
-  */ 
-
-int gps2_send_pmtk_command(struct mg_str command_string) {
-
-  if (gps2_get_global_device()) {
-    gps2_send_device_pmtk_command(gps2_get_global_device(), command_string);
-    return true;
-  } else{
-    return false;
-  }
-
-}
-
-#endif
 struct gps2 *gps2_create_uart(
   uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data) {
 

@@ -8,6 +8,7 @@
 
 #include <stdbool.h>
 
+
 enum pmtk_sentence_id {
   PMTK_UNKNOWN = -2,
   PMTK_INVALID = -1,
@@ -36,16 +37,6 @@ enum pmtk_ack_id {
 #define PMTK_ACK_ACTION_SUCCEEDED 0x0003
 
 
-struct pmtk_sentence_ack {
-  int command_ackd;
-  enum pmtk_ack_id flag;
-};
-
-enum pmtk_sentence_id pmtk_sentence_id(const char *sentence, bool strict);
-
-bool pmtk_parse_ack(struct pmtk_sentence_ack *frame, const char *sentence);
-
-//bool parsePmtkString(const char* line, struct gps2 *gps_dev);
 
 /**
  Different commands to set the update rate from once a second (1 Hz) to 10 times
@@ -133,9 +124,5 @@ bool pmtk_parse_ack(struct pmtk_sentence_ack *frame, const char *sentence);
 #define PGCMD_NOANTENNA "$PGCMD,33,0*6D" ///< don't show antenna status messages
 
 
-
-/* send a PMTK command_string to the global GPS check and wait ack_timeout milliseconds 
- * returns */ 
-int gps2_send_pmtk_command(struct mg_str command_string);
 
 

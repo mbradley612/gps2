@@ -231,6 +231,7 @@
  
                  *va_arg(ap, int *) = value;
              } break;
+            
  
              case 's': { // String value (char *).
                  char *buf = va_arg(ap, char *);
@@ -245,6 +246,11 @@
  
              case 't': { // NMEA talker+sentence identifier (char *).
                  // This field is always mandatory.
+
+                 // add a variation so that if the first character is a P
+                 // for a proprietary type, allow an unlimited length.
+
+
                  if (!field)
                      goto parse_error;
  
@@ -359,12 +365,18 @@
         //printf("minmea_check1 error");
         return MINMEA_INVALID;
      }
- 
-     char type[6];
+     
+     // changed from 6 to 8 for PMTK. If pulling PMTK out of the core library,
+     // change back to 6
+     char type[8];
+   
+
      if (!minmea_scan(sentence, "t", type)){
         //printf("minmea_check2 error");
         return MINMEA_INVALID;
      }
+
+     LOG(LL_DEBUG,("NMEA type is %.8s", type));
  
      if (!strcmp(type+2, "RMC"))
          return MINMEA_SENTENCE_RMC;
@@ -382,6 +394,10 @@
          return MINMEA_SENTENCE_VTG;
      if (!strcmp(type+2, "ZDA"))
          return MINMEA_SENTENCE_ZDA;
+
+     if (!strcmp(type+0, "PMTK001"))
+        return MINMEA_PMTK_SENTENCE_ACK;
+
  
      return MINMEA_UNKNOWN;
  }
@@ -618,6 +634,23 @@
        return false;
  
    return true;
+ }
+
+ bool minmea_pmtk_parse_ack(struct minmea_pmtk_sentence_ack *frame, const char *sentence)
+ {
+     // $PMTK001,604,3*32
+    char type[8];
+
+    if (!minmea_scan(sentence, "tii",
+        type,
+        &frame->ackd_command,
+        &frame->flag))
+        return false;
+    if (strcmp(type+0, "PMTK001"))
+        return false;
+
+    return true;
+
  }
  
  int minmea_gettime(struct timespec *ts, const struct minmea_date *date, const struct minmea_time *time_)

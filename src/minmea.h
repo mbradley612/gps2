@@ -36,6 +36,7 @@
      MINMEA_SENTENCE_GSV,
      MINMEA_SENTENCE_VTG,
      MINMEA_SENTENCE_ZDA,
+     MINMEA_PMTK_SENTENCE_ACK
  };
  
  struct minmea_float {
@@ -163,7 +164,19 @@
      int minute_offset;
  };
 
- struct 
+
+
+enum nmea_pmtk_ack_flag {
+    PMTK_ACK_INVALID = 0,
+    PMTK_ACK_UNSUPPORTED = 1,
+    PMTK_VALID_ACTION_FAILED = 2,
+    PMTK_VALID_ACTION_SUCEEDED = 3
+};
+struct minmea_pmtk_sentence_ack {
+     int ackd_command;
+     enum nmea_pmtk_ack_flag flag;
+ };
+
  
  /**
   * Calculate raw sentence checksum. Does not check sentence integrity.
@@ -209,6 +222,9 @@
  bool minmea_parse_gsv(struct minmea_sentence_gsv *frame, const char *sentence);
  bool minmea_parse_vtg(struct minmea_sentence_vtg *frame, const char *sentence);
  bool minmea_parse_zda(struct minmea_sentence_zda *frame, const char *sentence);
+
+ bool minmea_pmtk_parse_ack(struct minmea_pmtk_sentence_ack *frame, const char *sentence);
+
  
  /**
   * Convert GPS UTC date/time representation to a UNIX timestamp.

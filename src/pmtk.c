@@ -4,46 +4,47 @@
 
 
 #include <stdbool.h>
-#include "minmea.h"
+#include "gps2_internal.h"
 #include "pmtk.h"
-#include ## need to move gps_dev to an internal header
 
-enum pmtk_sentence_id pmtk_sentence_id(const char *sentence, bool strict) {
 
-    /* we don't need to do the basic valid sentence check, the nmea library has done this for us already */
+/* this should go into a separate C file with a plugin callback for the NMEA parsing */
 
-    /* call the minmea scan function */
+void gps2_send_device_pmtk_command(struct gps2 *gps_dev, struct mg_str command_string) {
 
-     char type[6];
-     if (!minmea_scan(sentence, "t", type)){
-        //printf("minmea_check2 error");
-        return MINMEA_INVALID;
-     }
+  struct mbuf command_buffer;
+  struct mg_str crlf;
 
-     if (!strcmp(type, "PMTK001"))
-         return PMTK_ACK;
+  crlf = mg_mk_str("\r\n");
 
-    return PMTK_UNKNOWN;
+  mbuf_init(&command_buffer,command_string.len);
+
+  mbuf_append(&command_buffer,command_string.p,command_string.len);
+
+  mbuf_append(&command_buffer,crlf.p, crlf.len);
+
+  gps2_uart_tx(gps_dev,command_buffer);
+
+
+  
+
+}
+
+/* send a PMTK command_string to the global GPS 
  
-}
+ return false if there is no global device
+ 
+  */ 
 
-bool pmtk_parse_ack(struct pmtk_sentence_ack *frame, const char *sentence) {
-    char type[7];
-    int command_ackd;
-    int flag;
-    if (!minmea_scan(sentence, "",
-            type,
-            &frame->command_ackd,
-            &frame->flag
-            )) 
-        return false;
-    if (strcmp(type,"PMTK001"))
-        return false;
-    
+void gps2_send_pmtk_command(struct mg_str command_string) {
+
+  if (gps2_get_global_device()) {
+    gps2_send_device_pmtk_command(gps2_get_global_device(), command_string);
+    return true;
+  } else{
+    return false;
+  }
 
 }
 
 
-bool parsePmtkString(struct mg_str line, struct gps2 *gps_dev) {
-
-}
