@@ -59,6 +59,7 @@ struct gps2 {
   struct gps_location_reading location_reading;
   struct gps_datetime_reading datetime_reading;
   struct gps_satellites_reading satellites_reading;
+  struct mgos_uart_config  uart_config;
 
 };
 
@@ -460,7 +461,7 @@ void gps2_send_device_command(struct gps2 *gps_dev, struct mg_str command_string
 
 }
 
-/* send a PMTK command_string to the global GPS 
+/* send a  command_string to the global GPS 
  
  return false if there is no global device
  
@@ -477,6 +478,46 @@ void gps2_send_command(struct mg_str command_string) {
 
 }
 
+/* set the UART baud after initialisation */
+/* returns true if successful */
+
+bool gps2_set_device_uart_baud(struct gps2 *dev, int baud_rate) {
+
+  int current_baud;
+
+  // capture the current baud
+  current_baud = dev->uart_config.baud_rate;
+
+  // update the baud on UART config on our device
+  dev->uart_config.baud_rate = baud_rate;
+
+  // reset the timestamp for the last received data. This will
+  // force a connected event
+  dev->latest_rx_timestamp = 0;
+
+  // apply it to the UART device
+  if (mgos_uart_configure(dev->uart_no, &(dev->uart_config))) {
+    return true;
+  } else {
+    // revert back the baud
+    dev->uart_config.baud_rate = current_baud;
+    return false;
+
+  }
+
+
+}
+
+/* set the UART baud after initialisation on the global device*/
+bool gps2_set_uart_baud(int baud_rate) {
+  if (gps2_get_global_device()) {
+    gps2_set_device_uart_baud(gps2_get_global_device(), baud_rate);
+    return true;
+  } else{
+    return false;
+  }
+}
+
 
 struct gps2 *gps2_create_uart(
   uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data) {
@@ -486,14 +527,19 @@ struct gps2 *gps2_create_uart(
     struct mbuf *uart_rx_buffer = calloc(1, sizeof(struct mbuf));
     struct mbuf *uart_tx_buffer = calloc(1, sizeof(struct mbuf));
 
+
     /* check we have a uart config. If not, return null */
     if (ucfg == NULL) {
       return NULL;
     }
+    
+
 
     gps_dev->uart_no = uart_no;
     gps_dev->handler = handler;
     gps_dev->handler_user_data = handler_user_data;
+    memcpy(&(gps_dev->uart_config),ucfg,sizeof(struct mgos_uart_config));
+
 
     /* we set the initial size of our receive buffer to the size of the UART receive buffer. It will grow
     automatically if required */
@@ -502,7 +548,7 @@ struct gps2 *gps2_create_uart(
     gps_dev->uart_rx_buffer = uart_rx_buffer;
     gps_dev->uart_tx_buffer = uart_tx_buffer;
     
-    if (!mgos_uart_configure(gps_dev->uart_no, ucfg)) goto err;
+    if (!mgos_uart_configure(gps_dev->uart_no, &(gps_dev->uart_config))) goto err;
     
 
     LOG(LL_INFO, ("UART%d initialized %u,%d%c%d", gps_dev->uart_no, ucfg->baud_rate,

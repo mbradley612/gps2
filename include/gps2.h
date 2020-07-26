@@ -130,6 +130,12 @@ void gps2_get_device_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *ag
   is acquired or lost and whenever there is a location update */
 void gps2_set_device_ev_handler(struct gps2 *dev, gps2_ev_handler handler, void *handler_user_data);
 
+/* set the UART baud after initialisation */
+bool gps2_set_device_uart_baud(struct gps2 *dev, int baud_rate);
+
+/* set the UART baud after initialisation on the global device*/
+bool gps2_set_uart_baud(int baud_rate);
+
 
 
 
