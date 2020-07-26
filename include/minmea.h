@@ -26,6 +26,7 @@
  #define MINMEA_MAX_LENGTH 80
  
  enum minmea_sentence_id {
+     MINMEA_SENTENCE_PROPRIETARY = -2,
      MINMEA_INVALID = -1,
      MINMEA_UNKNOWN = 0,
      MINMEA_SENTENCE_RMC,
@@ -35,8 +36,7 @@
      MINMEA_SENTENCE_GST,
      MINMEA_SENTENCE_GSV,
      MINMEA_SENTENCE_VTG,
-     MINMEA_SENTENCE_ZDA,
-     MINMEA_PMTK_SENTENCE_ACK
+     MINMEA_SENTENCE_ZDA
  };
  
  struct minmea_float {
@@ -166,18 +166,7 @@
 
 
 
-enum nmea_pmtk_ack_flag {
-    PMTK_ACK_INVALID = 0,
-    PMTK_ACK_UNSUPPORTED = 1,
-    PMTK_VALID_ACTION_FAILED = 2,
-    PMTK_VALID_ACTION_SUCEEDED = 3
-};
-struct minmea_pmtk_sentence_ack {
-     int ackd_command;
-     enum nmea_pmtk_ack_flag flag;
- };
 
- 
  /**
   * Calculate raw sentence checksum. Does not check sentence integrity.
   */
@@ -223,9 +212,6 @@ struct minmea_pmtk_sentence_ack {
  bool minmea_parse_vtg(struct minmea_sentence_vtg *frame, const char *sentence);
  bool minmea_parse_zda(struct minmea_sentence_zda *frame, const char *sentence);
 
- bool minmea_pmtk_parse_ack(struct minmea_pmtk_sentence_ack *frame, const char *sentence);
-
- 
  /**
   * Convert GPS UTC date/time representation to a UNIX timestamp.
   */

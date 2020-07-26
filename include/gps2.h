@@ -49,9 +49,14 @@ struct gps2_datetime {
 };
 
 
+/*
+* Callback for the event handler
+*/
 typedef void (*gps2_ev_handler)(struct gps2 *gps,
                                             int ev, void *ev_data,
                                             void *user_data);
+
+                                    
 
 /*
 * Functions for accessing the global instance. The global instance is created
@@ -98,7 +103,8 @@ struct gps2;
 /* create the gps2 device on a uart and set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
 
-struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data);
+struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, 
+  void *handler_user_data);
 
 void gps2_destroy_device(struct gps2 *dev);
 
@@ -126,15 +132,21 @@ void gps2_set_device_ev_handler(struct gps2 *dev, gps2_ev_handler handler, void 
 
 
 
-/* PMTK functions 
-  *
-  * These probably need to be hidden behind the feature abstracting the underlying hardware.
-  * Quick fix for now. 
-  */
+
+/* send a proprietary string command_string to the global GPS */
+
+void gps2_send_command(struct mg_str command_string);
+
+void gps2_send_device_command(struct gps2 *gps_dev, struct mg_str command_string);
 
 
-/* send a PMTK command_string to the global GPS */
+/* callback for when the gps device emits a proprietary sentence */
 
-void gps2_send_pmtk_command(struct mg_str command_string);
+typedef void (*gps2_proprietary_sentence_parser)(struct mg_str line, struct gps2 *gps_dev);        
 
-void gps2_send_device_pmtk_command(struct gps2 *gps_dev, struct mg_str command_string);
+
+void gps2_set_proprietary_sentence_parser(gps2_proprietary_sentence_parser prop_sentence_parser);
+
+void gps2_set_device_proprietary_sentence_parser(struct gps2 *gps_dev, gps2_proprietary_sentence_parser prop_sentence_parser);
+
+

@@ -18,7 +18,7 @@
 #include "mgos.h"
 #include "time.h"
 #include "mgos_time.h"
-#include "gps2_internal.h"
+#include "gps2.h"
 
 
 #include "minmea.h"
@@ -51,6 +51,7 @@ struct gps_satellites_reading {
 struct gps2 {
   uint8_t uart_no;
   gps2_ev_handler handler; 
+  gps2_proprietary_sentence_parser proprietary_sentence_parser;
   void *handler_user_data; 
   struct mbuf *uart_rx_buffer;
   struct mbuf *uart_tx_buffer; 
@@ -230,13 +231,6 @@ void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_fram
 
 }
 
-void process_pmtk_ack_frame(struct gps2 *gps_dev, struct minmea_pmtk_sentence_ack ack_frame) {
-  // for now just log it
-  // TODO, call the callback for the command defined as a hardware specific structure attached
-  // to the gps2 structure
-
-  LOG(LL_INFO,("Received PMTK ACK for command %d status %d", ack_frame.ackd_command, (int)ack_frame.flag)); 
-}
 
 void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
   
@@ -263,13 +257,16 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
       }
     } break;
     
-    case MINMEA_PMTK_SENTENCE_ACK: {
-      struct minmea_pmtk_sentence_ack frame;
-      if (minmea_pmtk_parse_ack(&frame, line.p)) {
-        process_pmtk_ack_frame(gps_dev, frame);
+    case MINMEA_SENTENCE_PROPRIETARY: {
+
+      LOG(LL_DEBUG,("NMEA library says proprietary sentence"));
+      // if we have a callback handler, call it
+      if (gps_dev->proprietary_sentence_parser !=NULL) {
+        gps_dev->proprietary_sentence_parser(line,gps_dev);
+
       }
-    }
-    
+      // call a callback function with line and gps_dev
+    } break;
     case MINMEA_UNKNOWN: {
       LOG(LL_DEBUG,("NMEA library says sentence unknown"));
       
@@ -290,6 +287,9 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
   (void)gps_dev;
 
 }
+
+
+
 
 
 /*
@@ -414,21 +414,13 @@ void gps2_uart_dispatcher(int uart_no, void *arg){
 
 
       tx_string_nul = mg_strdup_nul(tx_string);
+
+      LOG(LL_DEBUG,("TX line us %s",tx_string_nul.p));
       
-      LOG(LL_DEBUG,("UART %i; Length %i; TX line is %s",uart_no, length_to_write, tx_string_nul.p));
-
-
-
-      LOG(LL_DEBUG, ("Before flush TX available is now: %i", mgos_uart_write_avail(uart_no)));
 
 
       // and flush
       mgos_uart_flush(uart_no);
-
-
-      LOG(LL_DEBUG, ("After flush TX available is now: %i", mgos_uart_write_avail(uart_no)));
-
-
 
 
       // remove what we've written from the buffer
@@ -438,7 +430,6 @@ void gps2_uart_dispatcher(int uart_no, void *arg){
       /* if we didn't write everything then when the tx buffer empties this dispatcher will be called and we 
       can can write again */
 
-      // TEST THIS BY SETTING THE TX BUFFER TO BE VERY SMALL
 
     }
 
@@ -453,6 +444,36 @@ void gps2_uart_tx(struct gps2 *gps_dev, struct mbuf buffer) {
 
   /* call the dispatcher */
   gps2_uart_dispatcher(gps_dev->uart_no, gps_dev);
+
+}
+
+void gps2_send_device_command(struct gps2 *gps_dev, struct mg_str command_string) {
+
+  struct mbuf command_buffer;
+  struct mg_str crlf;
+
+  crlf = mg_mk_str("\r\n");
+  mbuf_init(&command_buffer,command_string.len);
+  mbuf_append(&command_buffer,command_string.p,command_string.len);
+  mbuf_append(&command_buffer,crlf.p, crlf.len);
+  gps2_uart_tx(gps_dev,command_buffer);
+
+}
+
+/* send a PMTK command_string to the global GPS 
+ 
+ return false if there is no global device
+ 
+  */ 
+
+void gps2_send_command(struct mg_str command_string) {
+
+  if (gps2_get_global_device()) {
+    gps2_send_device_command(gps2_get_global_device(), command_string);
+    return true;
+  } else{
+    return false;
+  }
 
 }
 
@@ -579,6 +600,19 @@ void gps2_get_satellites( int *satellites_tracked, int64_t *age) {
 /* fix quality in last full GPGGA sentence */
 void gps2_get_fix_quality(int *fix_quality, int64_t *age) {
   gps2_get_device_fix_quality(gps2_get_global_device(),fix_quality,age);
+}
+
+
+
+
+void gps2_set_proprietary_sentence_parser(gps2_proprietary_sentence_parser prop_sentence_parser) {
+  gps2_get_global_device()->proprietary_sentence_parser = prop_sentence_parser;
+
+}
+
+void gps2_set_device_proprietary_sentence_parser(struct gps2 *gps_dev, gps2_proprietary_sentence_parser prop_sentence_parser) {
+  gps_dev->proprietary_sentence_parser = prop_sentence_parser;
+
 }
 
 

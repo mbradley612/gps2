@@ -249,20 +249,35 @@
 
                  // add a variation so that if the first character is a P
                  // for a proprietary type, allow an unlimited length.
+                 
 
-
-                 if (!field)
+                 if (!field) {
                      goto parse_error;
+                 }
  
-                 if (field[0] != '$')
+                 if (field[0] != '$') {
                      goto parse_error;
-                 for (int f=0; f<5; f++)
-                     if (!minmea_isfield(field[1+f]))
-                         goto parse_error;
- 
+                 }
                  char *buf = va_arg(ap, char *);
-                 memcpy(buf, field+1, 5);
-                 buf[5] = '\0';
+
+                 // proprietary extension begin with P and then the sentence type can be longer than
+                 // 5 characters. Check for P and then follow the string logic
+                 if (field[1] == 'P') {
+
+                     
+                     while (minmea_isfield(*field))
+                         *buf++ = *field++;
+                     *buf = '\0';
+                     
+
+                 } else {
+                 
+                    for (int f=0; f<5; f++)
+                        if (!minmea_isfield(field[1+f]))
+                            goto parse_error;
+                    memcpy(buf, field+1, 5);
+                    buf[5] = '\0';
+                 }
              } break;
  
              case 'D': { // Date (int, int, int), -1 if empty.
@@ -362,22 +377,21 @@
  enum minmea_sentence_id minmea_sentence_id(const char *sentence, bool strict)
  {
      if (!minmea_check(sentence, strict)){
+        LOG(LL_DEBUG,("minmea_check1 error"));
         //printf("minmea_check1 error");
         return MINMEA_INVALID;
      }
      
-     // changed from 6 to 8 for PMTK. If pulling PMTK out of the core library,
-     // change back to 6
+
      char type[8];
    
 
      if (!minmea_scan(sentence, "t", type)){
+        LOG(LL_DEBUG,("minmea_check2 error"));
         //printf("minmea_check2 error");
         return MINMEA_INVALID;
      }
 
-     LOG(LL_DEBUG,("NMEA type is %.8s", type));
- 
      if (!strcmp(type+2, "RMC"))
          return MINMEA_SENTENCE_RMC;
      if (!strcmp(type+2, "GGA"))
@@ -394,9 +408,9 @@
          return MINMEA_SENTENCE_VTG;
      if (!strcmp(type+2, "ZDA"))
          return MINMEA_SENTENCE_ZDA;
-
-     if (!strcmp(type+0, "PMTK001"))
-        return MINMEA_PMTK_SENTENCE_ACK;
+     if (type[1]== 'P') {
+        return MINMEA_SENTENCE_PROPRIETARY;
+     }
 
  
      return MINMEA_UNKNOWN;
@@ -636,22 +650,6 @@
    return true;
  }
 
- bool minmea_pmtk_parse_ack(struct minmea_pmtk_sentence_ack *frame, const char *sentence)
- {
-     // $PMTK001,604,3*32
-    char type[8];
-
-    if (!minmea_scan(sentence, "tii",
-        type,
-        &frame->ackd_command,
-        &frame->flag))
-        return false;
-    if (strcmp(type+0, "PMTK001"))
-        return false;
-
-    return true;
-
- }
  
  int minmea_gettime(struct timespec *ts, const struct minmea_date *date, const struct minmea_time *time_)
  {
