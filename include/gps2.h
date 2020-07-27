@@ -18,10 +18,11 @@
 
 #define GPS_EV_NONE 0x0000
 #define GPS_EV_INITIALIZED 0x0001
-#define GPS_EV_LOCATION_UPDATE 0x0002
-#define GPS_EV_DATETIME_UPDATE 0x0003
-#define GPS_EV_FIX_ACQUIRED 0x0004
-#define GPS_EV_FIX_LOST 0x0005
+#define GPS_EV_CONNECTED 0x0002
+#define GPS_EV_LOCATION_UPDATE 0x0003
+#define GPS_EV_DATETIME_UPDATE 0x0004
+#define GPS_EV_FIX_ACQUIRED 0x0005
+#define GPS_EV_FIX_LOST 0x0006
 
 
 
@@ -48,10 +49,14 @@ struct gps2_datetime {
 };
 
 
+/*
+* Callback for the event handler
+*/
 typedef void (*gps2_ev_handler)(struct gps2 *gps,
                                             int ev, void *ev_data,
                                             void *user_data);
-                                            
+
+                                    
 
 /*
 * Functions for accessing the global instance. The global instance is created
@@ -86,6 +91,8 @@ struct gps2 *gps2_get_global_device();
 
 
 
+
+
 /*
 * Functions for managing and accessing individual gps devices
 */
@@ -96,7 +103,8 @@ struct gps2;
 /* create the gps2 device on a uart and set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
 
-struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data);
+struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, 
+  void *handler_user_data);
 
 void gps2_destroy_device(struct gps2 *dev);
 
@@ -118,7 +126,27 @@ void gps2_get_device_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *ag
 
 
 
-/* set the event handler for the global device. The handler callback will be called when the GPS is initialized, when a GPS fix
+/* set the event handler for a device. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
 void gps2_set_device_ev_handler(struct gps2 *dev, gps2_ev_handler handler, void *handler_user_data);
+
+
+
+
+/* send a proprietary string command_string to the global GPS */
+
+void gps2_send_command(struct mg_str command_string);
+
+void gps2_send_device_command(struct gps2 *gps_dev, struct mg_str command_string);
+
+
+/* callback for when the gps device emits a proprietary sentence */
+
+typedef void (*gps2_proprietary_sentence_parser)(struct mg_str line, struct gps2 *gps_dev);        
+
+
+void gps2_set_proprietary_sentence_parser(gps2_proprietary_sentence_parser prop_sentence_parser);
+
+void gps2_set_device_proprietary_sentence_parser(struct gps2 *gps_dev, gps2_proprietary_sentence_parser prop_sentence_parser);
+
 

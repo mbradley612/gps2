@@ -26,7 +26,8 @@ config_schema:
   - ["gps.uart.rx_buffer_size","i",512, {title:"GPS global UART rx buffer"}]
   - ["gps.uart.tx_buffer_size","i",128, {title:"GPS global UART tx buffer"}]
 
-
+cdefs:
+  MINMEA_PMTK_EXTENSION: 1
 
 # Used by the mos tool to catch mos binaries incompatible with this file format
 manifest_version: 2019-07-28
