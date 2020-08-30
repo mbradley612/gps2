@@ -60,6 +60,8 @@ struct gps2 {
   struct gps_datetime_reading datetime_reading;
   struct gps_satellites_reading satellites_reading;
   struct mgos_uart_config  uart_config;
+  int8_t disconnect_timeout;
+  mgos_timer_id disconnect_timer_id;
 
 };
 
@@ -548,8 +550,11 @@ struct gps2 *gps2_create_uart(
     gps_dev->uart_rx_buffer = uart_rx_buffer;
     gps_dev->uart_tx_buffer = uart_tx_buffer;
     
+    
     if (!mgos_uart_configure(gps_dev->uart_no, &(gps_dev->uart_config))) goto err;
     
+
+    //if (!mgos_uart_configure(gps_dev->uart_no, ucfg)) goto err;
 
     LOG(LL_INFO, ("UART%d initialized %u,%d%c%d", gps_dev->uart_no, ucfg->baud_rate,
                 ucfg->num_data_bits,
@@ -563,6 +568,11 @@ struct gps2 *gps2_create_uart(
 
     /* set our latest rx timestamp to 0 */
     gps_dev->latest_rx_timestamp = 0;
+
+    /* set our disconnect timout to 0. This disables the functionality. 
+      * call gps2_set_disconnect_timeout to turn on this feature.
+    */
+    gps_dev->disconnect_timeout = 0;
 
     LOG(LL_INFO, ("Initialized GPS device"));
     if (gps_dev->handler) {
@@ -662,6 +672,58 @@ void gps2_set_device_proprietary_sentence_parser(struct gps2 *gps_dev, gps2_prop
 }
 
 
+/*
+* Callback for the disconnect timer for a device
+*/
+void gps2_disconnect_timer_callback(void *arg) {
+  struct gps2 *gps_dev;
+  
+  int64_t uptime_now;
+
+  LOG(LL_DEBUG,("Inside disconnect timer callback"));
+
+  gps_dev = arg;
+
+  /* if we are disconnected, return now */
+  if (gps_dev->latest_rx_timestamp ==0) {
+    return;
+  }
+
+  /* check to see if we have received a sentence within the disconnect timeout */
+  uptime_now = mgos_uptime_micros();
+
+  if ((uptime_now - gps_dev->latest_rx_timestamp) > (gps_dev->disconnect_timeout) * 1000 ) {
+    /* if we have timed out, set the latest_rx_timestamp to 0 and fire the timedout event */
+    gps_dev->latest_rx_timestamp = 0;
+    
+    if (gps_dev->handler) {
+          gps_dev->handler(gps_dev, 
+          GPS_EV_TIMEDOUT, 
+          NULL,
+          gps_dev->handler_user_data);
+    }
+  }
+
+
+
+
+
+}
+
+
+/* set the disconnect timeout. If no NMEA sentence is received within this time, the API will fire
+ a disconnect event */
+void gps2_enable_disconnect_timer(int disconnect_timeout) {
+  gps2_enable_device_disconnect_timer(gps2_get_global_device(),disconnect_timeout);
+
+}
+
+ /* set the disconnect timeout on a device */
+void gps2_enable_device_disconnect_timer(struct gps2 *dev, int disconnect_timeout) {
+  dev->disconnect_timeout = disconnect_timeout;
+  dev->disconnect_timer_id = mgos_set_timer(disconnect_timeout,MGOS_TIMER_REPEAT,gps2_disconnect_timer_callback,dev);
+
+}
 
 
 
