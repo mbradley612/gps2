@@ -596,6 +596,7 @@ struct gps2 *gps2_create_uart(
 static struct gps2 *create_global_device(uint8_t uart_no) {
 
   struct mgos_uart_config ucfg;
+  int disconnect_timeout;
 
   mgos_uart_config_set_defaults(uart_no,&ucfg);
 
@@ -607,6 +608,11 @@ static struct gps2 *create_global_device(uint8_t uart_no) {
   ucfg.rx_buf_size = mgos_sys_config_get_gps_uart_rx_buffer_size();
 
   global_gps_device = gps2_create_uart(uart_no, &ucfg, NULL, NULL);
+
+  disconnect_timeout = mgos_sys_config_get_gps_uart_disconnect_timeout();
+  if (disconnect_timeout > 0) {
+    gps2_enable_disconnect_timer(disconnect_timeout);
+  }
 
   return global_gps_device;
 
