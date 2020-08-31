@@ -19,10 +19,11 @@
 #define GPS_EV_NONE 0x0000
 #define GPS_EV_INITIALIZED 0x0001
 #define GPS_EV_CONNECTED 0x0002
-#define GPS_EV_LOCATION_UPDATE 0x0003
-#define GPS_EV_DATETIME_UPDATE 0x0004
-#define GPS_EV_FIX_ACQUIRED 0x0005
-#define GPS_EV_FIX_LOST 0x0006
+#define GPS_EV_TIMEDOUT 0x0003
+#define GPS_EV_LOCATION_UPDATE 0x0004
+#define GPS_EV_DATETIME_UPDATE 0x0005
+#define GPS_EV_FIX_ACQUIRED 0x0006
+#define GPS_EV_FIX_LOST 0x0007
 
 
 
@@ -129,6 +130,29 @@ void gps2_get_device_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *ag
 /* set the event handler for a device. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
 void gps2_set_device_ev_handler(struct gps2 *dev, gps2_ev_handler handler, void *handler_user_data);
+
+/* set the UART baud after initialisation */
+bool gps2_set_device_uart_baud(struct gps2 *dev, int baud_rate);
+
+/* set the UART baud after initialisation on the global device*/
+bool gps2_set_uart_baud(int baud_rate);
+
+/* enable the disconnect timer. Implemented as a software timer runs on a repeat cycle. 
+  If no NMEA sentence is received between callbacks, the disconnect event fires. Set to
+  0 to clear the timer for the device */
+ 
+ void gps2_enable_disconnect_timer(int disconnect_timeout);
+
+ /* set the disconnect timeout on a device */
+void gps2_enable_device_disconnect_timer(struct gps2 *dev, int disconnect_timeout);
+
+/* disable the disconnect timer */
+void gps2_disable_disconnect_timer();
+
+/* disable the disconnect timer on a device*/
+void gps2_disable_disconnect_timer(struct gps2 *dev);
+
+
 
 
 

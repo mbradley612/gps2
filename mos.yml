@@ -23,8 +23,10 @@ config_schema:
   - ["gps.uart","o", {title:"GPS global UART settings"}]  
   - ["gps.uart.no","i", 0, {title:"UART number connected to GPS global device. You must configure this to > 0"}]
   - ["gps.uart.baud","i",0, {title:"UART baud rate for GPS device"}]
+  - ["gps.uart.disconnect_timeout","i",0, {title:"UART baud disconnect timeout in milliseonds. The library will fire a disconnected event if no NMEA sentence received within this timeout"}]
   - ["gps.uart.rx_buffer_size","i",512, {title:"GPS global UART rx buffer"}]
   - ["gps.uart.tx_buffer_size","i",128, {title:"GPS global UART tx buffer"}]
+
 
 cdefs:
   MINMEA_PMTK_EXTENSION: 1

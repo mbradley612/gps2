@@ -59,6 +59,9 @@ struct gps2 {
   struct gps_location_reading location_reading;
   struct gps_datetime_reading datetime_reading;
   struct gps_satellites_reading satellites_reading;
+  struct mgos_uart_config  uart_config;
+  int disconnect_timeout;
+  mgos_timer_id disconnect_timer_id;
 
 };
 
@@ -460,7 +463,7 @@ void gps2_send_device_command(struct gps2 *gps_dev, struct mg_str command_string
 
 }
 
-/* send a PMTK command_string to the global GPS 
+/* send a  command_string to the global GPS 
  
  return false if there is no global device
  
@@ -477,6 +480,46 @@ void gps2_send_command(struct mg_str command_string) {
 
 }
 
+/* set the UART baud after initialisation */
+/* returns true if successful */
+
+bool gps2_set_device_uart_baud(struct gps2 *dev, int baud_rate) {
+
+  int current_baud;
+
+  // capture the current baud
+  current_baud = dev->uart_config.baud_rate;
+
+  // update the baud on UART config on our device
+  dev->uart_config.baud_rate = baud_rate;
+
+  // reset the timestamp for the last received data. This will
+  // force a connected event
+  dev->latest_rx_timestamp = 0;
+
+  // apply it to the UART device
+  if (mgos_uart_configure(dev->uart_no, &(dev->uart_config))) {
+    return true;
+  } else {
+    // revert back the baud
+    dev->uart_config.baud_rate = current_baud;
+    return false;
+
+  }
+
+
+}
+
+/* set the UART baud after initialisation on the global device*/
+bool gps2_set_uart_baud(int baud_rate) {
+  if (gps2_get_global_device()) {
+    gps2_set_device_uart_baud(gps2_get_global_device(), baud_rate);
+    return true;
+  } else{
+    return false;
+  }
+}
+
 
 struct gps2 *gps2_create_uart(
   uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data) {
@@ -486,14 +529,19 @@ struct gps2 *gps2_create_uart(
     struct mbuf *uart_rx_buffer = calloc(1, sizeof(struct mbuf));
     struct mbuf *uart_tx_buffer = calloc(1, sizeof(struct mbuf));
 
+
     /* check we have a uart config. If not, return null */
     if (ucfg == NULL) {
       return NULL;
     }
+    
+
 
     gps_dev->uart_no = uart_no;
     gps_dev->handler = handler;
     gps_dev->handler_user_data = handler_user_data;
+    memcpy(&(gps_dev->uart_config),ucfg,sizeof(struct mgos_uart_config));
+
 
     /* we set the initial size of our receive buffer to the size of the UART receive buffer. It will grow
     automatically if required */
@@ -502,8 +550,11 @@ struct gps2 *gps2_create_uart(
     gps_dev->uart_rx_buffer = uart_rx_buffer;
     gps_dev->uart_tx_buffer = uart_tx_buffer;
     
-    if (!mgos_uart_configure(gps_dev->uart_no, ucfg)) goto err;
     
+    if (!mgos_uart_configure(gps_dev->uart_no, &(gps_dev->uart_config))) goto err;
+    
+
+    //if (!mgos_uart_configure(gps_dev->uart_no, ucfg)) goto err;
 
     LOG(LL_INFO, ("UART%d initialized %u,%d%c%d", gps_dev->uart_no, ucfg->baud_rate,
                 ucfg->num_data_bits,
@@ -517,6 +568,11 @@ struct gps2 *gps2_create_uart(
 
     /* set our latest rx timestamp to 0 */
     gps_dev->latest_rx_timestamp = 0;
+
+    /* set our disconnect timout to 0. This disables the functionality. 
+      * call gps2_set_disconnect_timeout to turn on this feature.
+    */
+    gps_dev->disconnect_timeout = 0;
 
     LOG(LL_INFO, ("Initialized GPS device"));
     if (gps_dev->handler) {
@@ -540,6 +596,7 @@ struct gps2 *gps2_create_uart(
 static struct gps2 *create_global_device(uint8_t uart_no) {
 
   struct mgos_uart_config ucfg;
+  int disconnect_timeout;
 
   mgos_uart_config_set_defaults(uart_no,&ucfg);
 
@@ -551,6 +608,11 @@ static struct gps2 *create_global_device(uint8_t uart_no) {
   ucfg.rx_buf_size = mgos_sys_config_get_gps_uart_rx_buffer_size();
 
   global_gps_device = gps2_create_uart(uart_no, &ucfg, NULL, NULL);
+
+  disconnect_timeout = mgos_sys_config_get_gps_uart_disconnect_timeout();
+  if (disconnect_timeout > 0) {
+    gps2_enable_disconnect_timer(disconnect_timeout);
+  }
 
   return global_gps_device;
 
@@ -616,6 +678,57 @@ void gps2_set_device_proprietary_sentence_parser(struct gps2 *gps_dev, gps2_prop
 }
 
 
+/*
+* Callback for the disconnect timer for a device
+*/
+void gps2_disconnect_timer_callback(void *arg) {
+  struct gps2 *gps_dev;
+  
+  int64_t uptime_now;
+
+  gps_dev = arg;
+
+  /* if we are disconnected, return now */
+  if (gps_dev->latest_rx_timestamp ==0) {
+    return;
+  }
+
+  /* check to see if we have received a sentence within the disconnect timeout */
+  uptime_now = mgos_uptime_micros();
+
+
+  if ((uptime_now - gps_dev->latest_rx_timestamp) > (gps_dev->disconnect_timeout) * 1000 ) {
+    /* if we have timed out, set the latest_rx_timestamp to 0 and fire the timedout event */
+    gps_dev->latest_rx_timestamp = 0;
+    
+    if (gps_dev->handler) {
+          gps_dev->handler(gps_dev, 
+          GPS_EV_TIMEDOUT, 
+          NULL,
+          gps_dev->handler_user_data);
+    }
+  }
+
+
+
+
+
+}
+
+
+/* set the disconnect timeout. If no NMEA sentence is received within this time, the API will fire
+ a disconnect event */
+void gps2_enable_disconnect_timer(int disconnect_timeout) {
+  gps2_enable_device_disconnect_timer(gps2_get_global_device(),disconnect_timeout);
+
+}
+
+ /* set the disconnect timeout on a device */
+void gps2_enable_device_disconnect_timer(struct gps2 *dev, int disconnect_timeout) {
+  dev->disconnect_timeout = disconnect_timeout;
+  dev->disconnect_timer_id = mgos_set_timer(disconnect_timeout,MGOS_TIMER_REPEAT,gps2_disconnect_timer_callback,dev);
+
+}
 
 
 
