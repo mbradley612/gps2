@@ -60,7 +60,7 @@ struct gps2 {
   struct gps_datetime_reading datetime_reading;
   struct gps_satellites_reading satellites_reading;
   struct mgos_uart_config  uart_config;
-  int8_t disconnect_timeout;
+  int disconnect_timeout;
   mgos_timer_id disconnect_timer_id;
 
 };
@@ -680,8 +680,6 @@ void gps2_disconnect_timer_callback(void *arg) {
   
   int64_t uptime_now;
 
-  LOG(LL_DEBUG,("Inside disconnect timer callback"));
-
   gps_dev = arg;
 
   /* if we are disconnected, return now */
@@ -691,6 +689,7 @@ void gps2_disconnect_timer_callback(void *arg) {
 
   /* check to see if we have received a sentence within the disconnect timeout */
   uptime_now = mgos_uptime_micros();
+
 
   if ((uptime_now - gps_dev->latest_rx_timestamp) > (gps_dev->disconnect_timeout) * 1000 ) {
     /* if we have timed out, set the latest_rx_timestamp to 0 and fire the timedout event */
