@@ -29,22 +29,6 @@
  
 
 
-struct gps_location_reading {
-  struct gps2_location location;
-  int64_t timestamp;
-};
-
-struct gps_datetime_reading {
-  struct gps2_datetime datetime;
-  int64_t timestamp;
-};
-
-struct gps_satellites_reading {
-  short satellites_tracked;
-  int fix_quality;
-  int64_t timestamp;
-};
-
 
 
 
@@ -53,15 +37,19 @@ struct gps2 {
   gps2_ev_handler handler; 
   gps2_proprietary_sentence_parser proprietary_sentence_parser;
   void *handler_user_data; 
+
   struct mbuf *uart_rx_buffer;
   struct mbuf *uart_tx_buffer; 
   int64_t latest_rx_timestamp;
-  struct gps_location_reading location_reading;
-  struct gps_datetime_reading datetime_reading;
-  struct gps_satellites_reading satellites_reading;
   struct mgos_uart_config  uart_config;
   int disconnect_timeout;
   mgos_timer_id disconnect_timer_id;
+  
+  struct minmea_sentence_rmc latest_rmc;
+  int64_t latest_rmc_timestamp;
+
+  struct minmea_sentence_gga latest_gga;
+  int64_t latest_gga_timestamp;
 
 };
 
@@ -72,67 +60,71 @@ static struct gps2 *global_gps_device;
 /* location including speed and course and age of fix in milliseconds 
    this is derived from the most recent RMC sentence*/
 
-void gps2_get_device_location(struct gps2 *dev, struct gps2_location *location, int64_t *fix_age) {
-  *location = dev->location_reading.location;
-  *fix_age = mgos_uptime_micros() - dev->location_reading.timestamp;
+void gps2_get_device_latest_rmc(struct gps2 *dev,struct gps2_rmc *latest_rmc, int64_t *age) {
+  latest_rmc->datetime.year = dev->latest_rmc.date.year;
+  latest_rmc->datetime.month = dev->latest_rmc.date.month;
+  latest_rmc->datetime.day = dev->latest_rmc.date.day;
+  latest_rmc->datetime.hours = dev->latest_rmc.time.hours;
+  latest_rmc->datetime.minutes = dev->latest_rmc.time.minutes;
+  latest_rmc->datetime.seconds = dev->latest_rmc.time.seconds;
+  latest_rmc->datetime.microseconds = dev->latest_rmc.time.microseconds;
+
+  latest_rmc->latitude = minmea_tocoord(&(dev->latest_rmc.latitude));
+  latest_rmc->longitude = minmea_tocoord(&(dev->latest_rmc.longitude));
+  latest_rmc->speed = minmea_tofloat(&(dev->latest_rmc.speed));
+  latest_rmc->course = minmea_tofloat(&(dev->latest_rmc.course));
+  latest_rmc->variation = minmea_tofloat(&(dev->latest_rmc.variation));
+  
+
+  *age = mgos_uptime_micros() - dev->latest_rmc_timestamp;
+}
+
+void gps2_get_device_latest_gga(struct gps2 *dev,struct gps2_gga *latest_gga, int64_t *age) {
+  latest_gga->time.hours = dev->latest_gga.time.hours;
+  latest_gga->time.minutes = dev->latest_gga.time.minutes;
+  latest_gga->time.seconds = dev->latest_gga.time.seconds;
+  latest_gga->time.microseconds = dev->latest_gga.time.microseconds;
+
+  latest_gga->latitude = minmea_tocoord(&(dev->latest_gga.latitude));
+  latest_gga->longitude = minmea_tocoord(&(dev->latest_gga.longitude));
+  latest_gga->fix_quality = dev->latest_gga.fix_quality;
+  latest_gga->satellites_tracked = dev->latest_gga.satellites_tracked;
+  latest_gga->hdop = minmea_tofloat(&dev->latest_gga.hdop);
+  latest_gga->altitude = minmea_tofloat(&dev->latest_gga.altitude);
+  latest_gga->altitude_units = dev ->latest_gga.altitude_units;
+  latest_gga->height = minmea_tofloat(&dev -> latest_gga.height);
+  latest_gga->height_units = dev -> latest_gga.height_units;
+  latest_gga->dgps_age = dev -> latest_gga.dgps_age;
+
+  
+
+  *age = mgos_uptime_micros() - dev->latest_gga_timestamp;
 }
 
 
-/* date in last full GPRMC sentence */
-void gps2_get_device_datetime(struct gps2 *dev, struct gps2_datetime *datetime, int64_t *age ) {
-  *datetime = dev->datetime_reading.datetime;
-  *age = mgos_uptime_micros() - dev->datetime_reading.timestamp;
-}
-
-void gps2_get_device_unixtime(struct gps2 *dev, time_t *unixtime_now, int64_t *microseconds) {
+void gps2_get_device_unixtime_from_latest_rmc(struct gps2 *dev, time_t *unixtime_now, int64_t *microseconds) {
   struct tm time;
   time_t gps_unixtime;
   int64_t age;
 
 
   /* construct a time object to represent the last GPRMC sentence from the GPS device */
-  time.tm_year = dev->datetime_reading.datetime.year - 1900;
-  time.tm_mon = dev->datetime_reading.datetime.month - 1;
-  time.tm_mday = dev->datetime_reading.datetime.day;
+  time.tm_year = dev->latest_rmc.date.year - 1900;
+  time.tm_mon = dev->latest_rmc.date.month - 1;
+  time.tm_mday = dev->latest_rmc.date.day;
   
-  time.tm_hour = dev->datetime_reading.datetime.hours;
-  time.tm_min = dev->datetime_reading.datetime.minutes;
-  time.tm_sec = dev->datetime_reading.datetime.seconds;
+  time.tm_hour = dev->latest_rmc.time.hours;
+  time.tm_min = dev->latest_rmc.time.minutes;
+  time.tm_sec = dev->latest_rmc.time.seconds;
 
   /* turn this into unix time */
   gps_unixtime = mktime(&time);
   
-  age = mgos_uptime_micros() - dev->datetime_reading.timestamp;
+  age = mgos_uptime_micros() - dev->latest_rmc_timestamp;
 
   *unixtime_now = gps_unixtime + age/1000000;
 
   *microseconds = age % 1000000;
-}
- 
-/* speed in last full GPRMC sentence in 100ths of a knot */
-void gps2_get_device_speed(struct gps2 *dev, double *speed, int64_t *age) {
-  *speed = dev->location_reading.location.speed;
-  *age = mgos_uptime_micros()  - dev->location_reading.timestamp;
-}
- 
-/* course in last full GPRMC sentence in 100th of a degree */
-void gps2_get_device_course(struct gps2 *dev, double *course, int64_t *age) {
-  *course = dev->location_reading.location.course;
-  *age = mgos_uptime_micros()  - dev->location_reading.timestamp;
-}
-
-/* satellites used in last full GPGGA sentence */
-void gps2_get_device_satellites(struct gps2 *dev, int *satellites_tracked, int64_t *age) {
-  *satellites_tracked = dev->satellites_reading.satellites_tracked;
-  *age = mgos_uptime_micros()  - dev->satellites_reading.timestamp;
-
-}
-
-/* fix quality in last full GPGGA sentence */
-void gps2_get_device_fix_quality(struct gps2 *dev, int *fix_quality, int64_t *age) {
-  *fix_quality = dev->satellites_reading.fix_quality;
-  *age = mgos_uptime_micros()  - dev->satellites_reading.timestamp;
-
 }
 
 
@@ -142,37 +134,16 @@ void process_rmc_frame(struct gps2 *gps_dev, struct minmea_sentence_rmc rmc_fram
 
   LOG(LL_DEBUG,("Processing RMC frame"));
   /* lon and lat */
-  gps_dev->location_reading.location.latitude = minmea_tocoord(&rmc_frame.latitude);
-  gps_dev->location_reading.location.longitude = minmea_tocoord(&rmc_frame.longitude);
-  gps_dev->location_reading.timestamp = mgos_uptime_micros();
-  /* speed */
-  gps_dev->location_reading.location.speed = minmea_tofloat(&rmc_frame.speed);
-  /* course */
-  gps_dev->location_reading.location.course = minmea_tofloat(&rmc_frame.course);
-  /* variation */
-  gps_dev->location_reading.location.variation = minmea_tofloat(&rmc_frame.variation);
-  
-  /* date time */
-  gps_dev->datetime_reading.datetime.day = rmc_frame.date.day;
-  gps_dev->datetime_reading.datetime.month = rmc_frame.date.month;
-  gps_dev->datetime_reading.datetime.year = rmc_frame.date.year + CURRENT_CENTURY;
-  gps_dev->datetime_reading.datetime.hours = rmc_frame.time.hours;
-  gps_dev->datetime_reading.datetime.minutes = rmc_frame.time.minutes;
-  gps_dev->datetime_reading.datetime.seconds = rmc_frame.time.seconds;
-  gps_dev->datetime_reading.datetime.microseconds = rmc_frame.time.microseconds;
-  gps_dev->datetime_reading.timestamp = mgos_uptime_micros();
+  gps_dev->latest_rmc = rmc_frame;
+  gps_dev->latest_rmc_timestamp = mgos_uptime_micros();
 
   if (gps_dev->handler) {
       /* Tell our handler that we've got a location update*/
         gps_dev->handler(gps_dev, 
-          GPS_EV_LOCATION_UPDATE, 
+          GPS_EV_RMC, 
           NULL,
           gps_dev->handler_user_data);
-      /* Tell our handler that we've got a datetime update*/
-        gps_dev->handler(gps_dev, 
-            GPS_EV_DATETIME_UPDATE, 
-            NULL,
-            gps_dev->handler_user_data);  
+     
       
     }
 }
@@ -185,20 +156,23 @@ void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_fram
   /* we don't process the latest lat and lon as we use the RMC frame to obtain 
   a complete location reading */
 
-   /* satellites tracked */
-  gps_dev->satellites_reading.satellites_tracked = gga_frame.satellites_tracked;
-  /* fix quality */
 
-  previous_fix_quality = gps_dev->satellites_reading.fix_quality;
-  gps_dev->satellites_reading.fix_quality = gga_frame.fix_quality;
-  gps_dev->satellites_reading.timestamp = mgos_uptime_micros();
+  previous_fix_quality = gps_dev->latest_gga.fix_quality;
+
+   /* satellites tracked */
+  
+  
+  gps_dev->latest_gga = gga_frame;
+  gps_dev->latest_gga_timestamp = mgos_uptime_micros();
+
+
 
 
 
   if (gps_dev->handler) {
       /* Tell our handler that we've got a location update*/
         gps_dev->handler(gps_dev, 
-          GPS_EV_LOCATION_UPDATE, 
+          GPS_EV_GGA, 
           NULL,
           gps_dev->handler_user_data);
       
@@ -638,30 +612,22 @@ void gps2_set_ev_handler(gps2_ev_handler handler, void *handler_user_data) {
   gps2_get_global_device()->handler_user_data = handler_user_data;
 }
 
+
 /* location including speed and course and age of fix in milliseconds 
    this is derived from the most recent RMC sentence*/
-void gps2_get_location(struct gps2_location *location, int64_t *fix_age) {
-  gps2_get_device_location(gps2_get_global_device(), location, fix_age);
-}
- 
-/* date and time */
-void gps2_get_datetime(struct gps2_datetime *datetime, int64_t *age ) {
-  gps2_get_device_datetime(gps2_get_global_device(), datetime, age);
-}
-
-/* unix time now in milliseconds and microseconds adjusted for age*/
-void gps2_get_unixtime(time_t *unix_time, int64_t *microseconds) {
-  gps2_get_device_unixtime(gps2_get_global_device(),unix_time,microseconds);
-}
+void gps2_get_latest_rmc(struct gps2_rmc *latest_rmc, int64_t *age) {
+  gps2_get_device_latest_rmc(gps2_get_global_device(),latest_rmc, age);
+};
 
 /* satellites used in last full GPGGA sentence */
-void gps2_get_satellites( int *satellites_tracked, int64_t *age) {
-  gps2_get_device_satellites(gps2_get_global_device(),satellites_tracked,age);
-}
+void gps2_get_latest_gga(struct gps2_gga *latest_gga, int64_t *age) {
+  gps2_get_device_latest_gga(gps2_get_global_device(),latest_gga, age);
 
-/* fix quality in last full GPGGA sentence */
-void gps2_get_fix_quality(int *fix_quality, int64_t *age) {
-  gps2_get_device_fix_quality(gps2_get_global_device(),fix_quality,age);
+};
+
+/* unix time now in milliseconds and microseconds adjusted for age*/
+void gps2_get_unixtime_from_latest_rmc(time_t *unix_time, int64_t *microseconds) {
+  gps2_get_device_unixtime_from_latest_rmc(gps2_get_global_device(),unix_time,microseconds);
 }
 
 
@@ -729,6 +695,7 @@ void gps2_enable_device_disconnect_timer(struct gps2 *dev, int disconnect_timeou
   dev->disconnect_timer_id = mgos_set_timer(disconnect_timeout,MGOS_TIMER_REPEAT,gps2_disconnect_timer_callback,dev);
 
 }
+
 
 
 
