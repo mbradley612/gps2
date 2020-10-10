@@ -20,8 +20,11 @@
 #define GPS_EV_INITIALIZED 0x0001
 #define GPS_EV_RMC 0x0002
 #define GPS_EV_GGA 0x0003
-#define GPS_EV_FIX_ACQUIRED 0x0004
-#define GPS_EV_FIX_LOST 0x0005
+#define GPS_EV_CONNECTED 0x0004
+#define GPS_EV_TIMEDOUT 0x0005
+#define GPS_EV_FIX_ACQUIRED 0x0006
+#define GPS_EV_FIX_LOST 0x0007
+
 
 
 
@@ -78,7 +81,14 @@ struct gps2_gga {
   int dgps_age;
 
 };
-                                            
+             
+/*
+* Callback for the event handler
+*/
+typedef void (*gps2_ev_handler)(struct gps2 *gps,
+                                            int ev, void *ev_data,
+                                            void *user_data);
+
 
 /*
 * Functions for accessing the global instance. The global instance is created
@@ -100,12 +110,10 @@ void gps2_get_latest_rmc(struct gps2_rmc *latest_rmc, int64_t *age);
 void gps2_get_latest_gga(struct gps2_gga *latest_gga, int64_t *age);
 
 
-/* unix time now in milliseconds and microseconds adjusted for age*/
-void gps2_get_unixtime(time_t *unix_time, int64_t *microseconds);
-
-
 /* get the global gps2 device. Returns null if creating the UART handler has failed */
 struct gps2 *gps2_get_global_device();
+
+
 
 
 
@@ -119,7 +127,8 @@ struct gps2;
 /* create the gps2 device on a uart and set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
 
-struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data);
+struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, 
+  void *handler_user_data);
 
 void gps2_destroy_device(struct gps2 *dev);
 
@@ -135,7 +144,50 @@ void gps2_get_device_unixtime_from_latest_rmc(struct gps2 *dev, time_t *unix_tim
 
 
 
-/* set the event handler for the global device. The handler callback will be called when the GPS is initialized, when a GPS fix
+/* set the event handler for a device. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
 void gps2_set_device_ev_handler(struct gps2 *dev, gps2_ev_handler handler, void *handler_user_data);
+
+/* set the UART baud after initialisation */
+bool gps2_set_device_uart_baud(struct gps2 *dev, int baud_rate);
+
+/* set the UART baud after initialisation on the global device*/
+bool gps2_set_uart_baud(int baud_rate);
+
+/* enable the disconnect timer. Implemented as a software timer runs on a repeat cycle. 
+  If no NMEA sentence is received between callbacks, the disconnect event fires. Set to
+  0 to clear the timer for the device */
+ 
+ void gps2_enable_disconnect_timer(int disconnect_timeout);
+
+ /* set the disconnect timeout on a device */
+void gps2_enable_device_disconnect_timer(struct gps2 *dev, int disconnect_timeout);
+
+/* disable the disconnect timer */
+void gps2_disable_disconnect_timer();
+
+/* disable the disconnect timer on a device*/
+void gps2_disable_disconnect_timer(struct gps2 *dev);
+
+
+
+
+
+
+/* send a proprietary string command_string to the global GPS */
+
+void gps2_send_command(struct mg_str command_string);
+
+void gps2_send_device_command(struct gps2 *gps_dev, struct mg_str command_string);
+
+
+/* callback for when the gps device emits a proprietary sentence */
+
+typedef void (*gps2_proprietary_sentence_parser)(struct mg_str line, struct gps2 *gps_dev);        
+
+
+void gps2_set_proprietary_sentence_parser(gps2_proprietary_sentence_parser prop_sentence_parser);
+
+void gps2_set_device_proprietary_sentence_parser(struct gps2 *gps_dev, gps2_proprietary_sentence_parser prop_sentence_parser);
+
 
