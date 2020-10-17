@@ -52,4 +52,9 @@ Upon success, a pointer to the object will be returned. If the creation fails, N
 
 `boolean gps2_`
 
-? do we also want to support MQTT through the event API?
+## RPC interface
+
+`gps.navigation` returns the latest GPS RMC with age in milliseconds
+
+To call the RPC through the UART interface
+`call gis.navigation --set-control-lines=false`

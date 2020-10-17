@@ -19,6 +19,7 @@
 #include "time.h"
 #include "mgos_time.h"
 #include "gps2.h"
+#include "mgos_rpc.h"
 
 
 #include "minmea.h"
@@ -696,13 +697,112 @@ void gps2_enable_device_disconnect_timer(struct gps2 *dev, int disconnect_timeou
 
 }
 
+static void latest_rmc_callback(struct mg_rpc_request_info *ri, void *cb_arg,
+                   struct mg_rpc_frame_info *fi, struct mg_str args) {
+
+  struct gps2_rmc latest_rmc;
+  int64_t age;
+  int64_t age_milliseconds;
+
+
+  struct mbuf fb;
+  struct json_out out = JSON_OUT_MBUF(&fb);
+
+  mbuf_init(&fb, 100);
+  
+  // check that we have a global device
+  if (gps2_get_global_device()) {
+
+    // get our latest rmc
+    gps2_get_latest_rmc(&latest_rmc, &age);
+
+    age_milliseconds = age / 1000;
+
+    // check if we have a location
+    if (latest_rmc.longitude == NAN) {
+      json_printf(&out, "{error: %Q}", "no GPS fix");
+
+    } else {
+
+
+      json_printf(&out, "{longitude: %f, latitide: %f, course: %f, speed: %f, variation: %f, age: %"PRId64 "}",
+        latest_rmc.longitude, 
+        latest_rmc.latitude, 
+        latest_rmc.course, 
+        latest_rmc.speed, 
+        latest_rmc.variation != latest_rmc.variation ? 0 : latest_rmc.variation,
+        age_milliseconds);
+    }
+  } else {
+    json_printf(&out, "{error: %Q}", "no global GPS device");
+  }
+
+  mg_rpc_send_responsef(ri, "%.*s", fb.len, fb.buf);
+  //mg_rpc_send_responsef(ri, "%f", latest_rmc.latitude);
+  ri = NULL;
+
+  mbuf_free(&fb);
+  (void) cb_arg;
+  (void) fi;
+}
+
+
+static void latest_gga_callback(struct mg_rpc_request_info *ri, void *cb_arg,
+                   struct mg_rpc_frame_info *fi, struct mg_str args) {
+
+  struct gps2_gga latest_gga;
+  int64_t age;
+  int64_t age_milliseconds;
+
+
+  struct mbuf fb;
+  struct json_out out = JSON_OUT_MBUF(&fb);
+
+  mbuf_init(&fb, 100);
+  
+  // check that we have a global device
+  if (gps2_get_global_device()) {
+
+    // get our latest rmc
+    gps2_get_latest_gga(&latest_gga, &age);
+
+    age_milliseconds = age / 1000;
+
+   
+
+
+      json_printf(&out, "{longitude: %f, latitide: %f, fix_quality: %d, satellites_tracked: %d, hdop: %f, altitude: %f, altitude_units: \"%c\", height: %f, height_units: \"%c\", dgps_age: %d, age: %"PRId64 "}",
+        latest_gga.longitude, 
+        latest_gga.latitude, 
+        latest_gga.fix_quality,
+        latest_gga.satellites_tracked,
+        latest_gga.hdop,
+        latest_gga.altitude,
+        latest_gga.altitude_units,
+        latest_gga.height,
+        latest_gga.height_units,
+        latest_gga.dgps_age,
+        age_milliseconds);
+    
+  } else {
+    json_printf(&out, "{error: %Q}", "no global GPS device");
+  }
+
+  mg_rpc_send_responsef(ri, "%.*s", fb.len, fb.buf);
+  //mg_rpc_send_responsef(ri, "%f", latest_rmc.latitude);
+  ri = NULL;
+
+  mbuf_free(&fb);
+  (void) cb_arg;
+  (void) fi;
+}
 
 
 
 enum mgos_init_result mgos_gps2_init(void) {
   uint8_t gps_config_uart_no;
   uint8_t gps_config_uart_baud;
-
+  
   gps_config_uart_no = mgos_sys_config_get_gps_uart_no();
   gps_config_uart_baud = mgos_sys_config_get_gps_uart_baud();
 
@@ -718,6 +818,11 @@ enum mgos_init_result mgos_gps2_init(void) {
       return MGOS_INIT_APP_INIT_FAILED;
     } 
   }
+  mg_rpc_add_handler(mgos_rpc_get_global(), "gps.navigation", NULL, latest_rmc_callback, NULL);
+
+  mg_rpc_add_handler(mgos_rpc_get_global(), "gps.satellites", NULL, latest_gga_callback, NULL);
+
+  /* add an RPC handler */
   LOG(LL_DEBUG,("About to return success from init"));
   return true;
     
