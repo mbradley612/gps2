@@ -26,8 +26,25 @@
 #define CURRENT_CENTURY 2000
 
 #define GPS2_PMTK 1
- 
 
+
+/* Bits to manage what values are set on a location. There's probably a neat way to do this with defines*/
+enum {
+  LOCATION_ALTITUDE,
+  LOCATION_BEARING,
+  LOCATION_SPEED,
+};
+
+void bit_set(char bit, char *byte) {
+  bit = 1 << bit;
+  *byte = *byte | bit;
+}
+
+int bit_test(char bit, char byte)
+{
+    bit = 1 << bit;
+    return(bit & byte);
+}
 
 
 
@@ -131,21 +148,43 @@ void gps2_get_device_unixtime_from_latest_rmc(struct gps2 *dev, time_t *unixtime
 
 
 void process_rmc_frame(struct gps2 *gps_dev, struct minmea_sentence_rmc rmc_frame) {
+  struct mgos_gps_location location;
+  struct tm time;
 
   LOG(LL_DEBUG,("Processing RMC frame"));
   /* lon and lat */
   gps_dev->latest_rmc = rmc_frame;
   gps_dev->latest_rmc_timestamp = mgos_uptime_micros();
 
-  if (gps_dev->handler) {
-      /* Tell our handler that we've got a location update*/
-        gps_dev->handler(gps_dev, 
-          GPS_EV_RMC, 
-          NULL,
-          gps_dev->handler_user_data);
-     
-      
-    }
+  /* check we have a fix */
+  if (rmc_frame.valid == true) {
+
+    time.tm_year = rmc_frame.date.year + 100;
+    time.tm_mon = rmc_frame.date.month - 1;
+    time.tm_mday = rmc_frame.date.day;
+    
+    time.tm_hour = rmc_frame.time.hours;
+    time.tm_min = rmc_frame.time.minutes;
+    time.tm_sec = rmc_frame.time.seconds;
+
+    location.time = mktime(&time);
+
+
+    location.longitude = minmea_tocoord(&(rmc_frame.longitude));
+    location.latitude = minmea_tocoord(&(rmc_frame.latitude));
+    location.speed = minmea_tofloat(&(rmc_frame.speed));    
+    bit_set(LOCATION_SPEED, &location.values_filled);
+    
+    location.bearing = minmea_tofloat(&(rmc_frame.course));
+    bit_set(LOCATION_BEARING, &location.values_filled);
+    
+    location.elapsed_time = mgos_uptime_micros();
+    
+
+
+    mgos_event_trigger(MGOS_EV_GPS_LOCATION,&location);
+
+  }
 }
 
 void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_frame) {
@@ -155,6 +194,8 @@ void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_fram
   LOG(LL_DEBUG,("Processing RMC frame"));
   /* we don't process the latest lat and lon as we use the RMC frame to obtain 
   a complete location reading */
+
+  
 
 
   previous_fix_quality = gps_dev->latest_gga.fix_quality;
@@ -643,6 +684,19 @@ void gps2_set_device_proprietary_sentence_parser(struct gps2 *gps_dev, gps2_prop
 
 }
 
+int mgos_gps_has_bearing(const struct mgos_gps_location *location) {
+  return (bit_test(LOCATION_BEARING,location->values_filled));
+}
+
+int mgos_gps_has_speed(const struct  mgos_gps_location *location) {
+  return (bit_test(LOCATION_SPEED,location->values_filled));
+
+}
+
+int mgos_gps_has_altitude(const struct  mgos_gps_location *location) {
+  return (bit_test(LOCATION_ALTITUDE,location->values_filled));
+}
+
 
 /*
 * Callback for the disconnect timer for a device
@@ -703,6 +757,8 @@ enum mgos_init_result mgos_gps2_init(void) {
   uint8_t gps_config_uart_no;
   uint8_t gps_config_uart_baud;
 
+  mgos_event_register_base(MGOS_EV_GPS_BASE, __FILE__);
+
   gps_config_uart_no = mgos_sys_config_get_gps_uart_no();
   gps_config_uart_baud = mgos_sys_config_get_gps_uart_baud();
 
@@ -718,6 +774,7 @@ enum mgos_init_result mgos_gps2_init(void) {
       return MGOS_INIT_APP_INIT_FAILED;
     } 
   }
+
   LOG(LL_DEBUG,("About to return success from init"));
   return true;
     

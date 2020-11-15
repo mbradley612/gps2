@@ -26,10 +26,42 @@
 #define GPS_EV_FIX_LOST 0x0007
 
 
+#define MGOS_EV_GPS_BASE MGOS_EVENT_BASE('G','P','S')
+
+enum mgos_gps_event {
+  MGOS_EV_GPS_LOCATION =
+    MGOS_EV_GPS_BASE, /* event_data: strict mgos_gps_location */
+  MGOS_EV_GPS_NMEA_SENTENCE, /* event_data: strict mgos_gps_nmea_sentence */
+  MGOS_EV_GPS_NMEA_STRING, /* event_data: strict mgos_gps_nmea_string */
+  MGOS_EV_GPS_STATUS /* event_data: strict mgos_gps_status */
+  
+};
+
+struct mgos_gps_location {
+  float latitude;
+  float longitude;
+  float altitude;
+  float bearing;
+  float speed;
+  time_t time;
+  int64_t elapsed_time;
+  char values_filled;
+
+};
+
+int mgos_gps_has_bearing(const struct mgos_gps_location *location);
+
+int mgos_gps_has_speed(const struct  mgos_gps_location *location);
+
+int mgos_gps_has_altitude(const struct  mgos_gps_location *location);
+
+/* ############################################################################# */
 
 
 
 struct gps2;
+
+
 
 
 typedef void (*gps2_ev_handler)(struct gps2 *gps,
@@ -48,7 +80,6 @@ struct gps2_datetime {
 
 
 struct gps2_time {
-
   int hours;
   int minutes;
   int seconds;
