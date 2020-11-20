@@ -68,10 +68,42 @@ struct gps2 {
   struct minmea_sentence_gga latest_gga;
   int64_t latest_gga_timestamp;
 
+  struct minmea_date latest_date;
+  int has_latest_date;
+
+  struct minmea_time latest_time;
+  int has_latest_time;
+
 };
 
 
 static struct gps2 *global_gps_device;
+
+
+static void update_latest_date(struct gps2 *gps_dev, struct minmea_date *date) {
+  gps_dev->latest_date.day = date->day;
+  gps_dev->latest_date.month = date->month;
+  gps_dev->latest_date.year = date->year;
+  gps_dev->has_latest_date = 1;
+
+}
+static void update_latest_time(struct gps2 *gps_dev, struct minmea_time *time) {
+  gps_dev->latest_time.hours = time->hours;
+  gps_dev->latest_time.minutes = time->minutes;
+  gps_dev->latest_time.seconds = time->seconds;
+  gps_dev->latest_time.microseconds = time->microseconds;
+  gps_dev->has_latest_time = 1;
+
+}
+    
+static int is_later_time(struct minmea_time *time1, struct minmea_time *time2) {
+  if (time2->hours >= time1->hours && time2->minutes >= time1->minutes && 
+    time2->seconds >= time1->seconds && time2->microseconds >= time1->microseconds) {
+      return 1;
+    } else {
+      return 0;
+    }
+}
 
 
 /* location including speed and course and age of fix in milliseconds 
@@ -179,6 +211,9 @@ void process_rmc_frame(struct gps2 *gps_dev, struct minmea_sentence_rmc rmc_fram
     bit_set(LOCATION_BEARING, &location.values_filled);
     
     location.elapsed_time = mgos_uptime_micros();
+
+    update_latest_date(gps_dev, &(rmc_frame.date));
+    update_latest_time(gps_dev, &(rmc_frame.time));
     
 
 
@@ -189,11 +224,51 @@ void process_rmc_frame(struct gps2 *gps_dev, struct minmea_sentence_rmc rmc_fram
 
 void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_frame) {
 
+  struct mgos_gps_location location;
+  struct tm time;
+
   int previous_fix_quality;
 
-  LOG(LL_DEBUG,("Processing RMC frame"));
-  /* we don't process the latest lat and lon as we use the RMC frame to obtain 
-  a complete location reading */
+  LOG(LL_DEBUG,("Processing GGA frame"));
+  /* GGA doesn't have the date so we need to pick up the latest date, */
+  
+  if (gps_dev->has_latest_date) {
+
+    /* check if the the gga frame time is later than the latest time */
+    if (is_later_time(&(gga_frame.time), &(gps_dev->latest_time))) {
+      time.tm_year = gps_dev->latest_date.year + 100;
+      time.tm_mon = gps_dev->latest_date.month - 1;
+      time.tm_mday = gps_dev->latest_date.day;
+      
+      time.tm_hour = gga_frame.time.hours;
+      time.tm_min = gga_frame.time.minutes;
+      time.tm_sec = gga_frame.time.seconds;
+      
+
+      location.time = mktime(&time);
+
+
+      location.longitude = minmea_tocoord(&(gga_frame.longitude));
+      location.latitude = minmea_tocoord(&(gga_frame.latitude));
+        
+      location.altitude = minmea_tofloat(&(gga_frame.altitude));
+      
+
+      bit_set(LOCATION_ALTITUDE, &location.values_filled);
+      
+      location.elapsed_time = mgos_uptime_micros();
+
+      update_latest_time(gps_dev, &gga_frame.time);
+
+
+
+    }
+
+
+
+  }
+
+
 
   
 

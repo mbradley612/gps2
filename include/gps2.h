@@ -55,6 +55,14 @@ int mgos_gps_has_speed(const struct  mgos_gps_location *location);
 
 int mgos_gps_has_altitude(const struct  mgos_gps_location *location);
 
+enum mgos_gps_gga_fix_quality {
+  MGOS_GPS_GGA_FIX_NOT_AVAILABLE = 0,
+  MGOS_GPS_GGA_GPS_FIX = 1,
+  MGOS_GPS_GGA_DGPS_FIX = 2
+};
+
+
+
 /* ############################################################################# */
 
 
