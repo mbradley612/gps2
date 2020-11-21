@@ -28,51 +28,15 @@
 #define GPS2_PMTK 1
 
 
-/* Bits to manage what values are set on a location. There's probably a neat way to do this with defines*/
-enum {
-  LOCATION_ALTITUDE,
-  LOCATION_BEARING,
-  LOCATION_SPEED,
-};
-
-void bit_set(char bit, char *byte) {
-  bit = 1 << bit;
-  *byte = *byte | bit;
-}
-
-int bit_test(char bit, char byte)
-{
-    bit = 1 << bit;
-    return(bit & byte);
-}
-
-
-
-
 struct gps2 {
   uint8_t uart_no;
-  gps2_ev_handler handler; 
-  gps2_proprietary_sentence_parser proprietary_sentence_parser;
   void *handler_user_data; 
 
   struct mbuf *uart_rx_buffer;
   struct mbuf *uart_tx_buffer; 
-  int64_t latest_rx_timestamp;
   struct mgos_uart_config  uart_config;
-  int disconnect_timeout;
-  mgos_timer_id disconnect_timer_id;
-  
-  struct minmea_sentence_rmc latest_rmc;
-  int64_t latest_rmc_timestamp;
 
-  struct minmea_sentence_gga latest_gga;
-  int64_t latest_gga_timestamp;
-
-  struct minmea_date latest_date;
-  int has_latest_date;
-
-  struct minmea_time latest_time;
-  int has_latest_time;
+  struct mgos_gps_location latest_location;
 
 };
 
@@ -80,115 +44,15 @@ struct gps2 {
 static struct gps2 *global_gps_device;
 
 
-static void update_latest_date(struct gps2 *gps_dev, struct minmea_date *date) {
-  gps_dev->latest_date.day = date->day;
-  gps_dev->latest_date.month = date->month;
-  gps_dev->latest_date.year = date->year;
-  gps_dev->has_latest_date = 1;
-
-}
-static void update_latest_time(struct gps2 *gps_dev, struct minmea_time *time) {
-  gps_dev->latest_time.hours = time->hours;
-  gps_dev->latest_time.minutes = time->minutes;
-  gps_dev->latest_time.seconds = time->seconds;
-  gps_dev->latest_time.microseconds = time->microseconds;
-  gps_dev->has_latest_time = 1;
-
-}
-    
-static int is_later_time(struct minmea_time *time1, struct minmea_time *time2) {
-  if (time2->hours >= time1->hours && time2->minutes >= time1->minutes && 
-    time2->seconds >= time1->seconds && time2->microseconds >= time1->microseconds) {
-      return 1;
-    } else {
-      return 0;
-    }
-}
-
-
-/* location including speed and course and age of fix in milliseconds 
-   this is derived from the most recent RMC sentence*/
-
-void gps2_get_device_latest_rmc(struct gps2 *dev,struct gps2_rmc *latest_rmc, int64_t *age) {
-  latest_rmc->datetime.year = dev->latest_rmc.date.year;
-  latest_rmc->datetime.month = dev->latest_rmc.date.month;
-  latest_rmc->datetime.day = dev->latest_rmc.date.day;
-  latest_rmc->datetime.hours = dev->latest_rmc.time.hours;
-  latest_rmc->datetime.minutes = dev->latest_rmc.time.minutes;
-  latest_rmc->datetime.seconds = dev->latest_rmc.time.seconds;
-  latest_rmc->datetime.microseconds = dev->latest_rmc.time.microseconds;
-
-  latest_rmc->latitude = minmea_tocoord(&(dev->latest_rmc.latitude));
-  latest_rmc->longitude = minmea_tocoord(&(dev->latest_rmc.longitude));
-  latest_rmc->speed = minmea_tofloat(&(dev->latest_rmc.speed));
-  latest_rmc->course = minmea_tofloat(&(dev->latest_rmc.course));
-  latest_rmc->variation = minmea_tofloat(&(dev->latest_rmc.variation));
-  
-
-  *age = mgos_uptime_micros() - dev->latest_rmc_timestamp;
-}
-
-void gps2_get_device_latest_gga(struct gps2 *dev,struct gps2_gga *latest_gga, int64_t *age) {
-  latest_gga->time.hours = dev->latest_gga.time.hours;
-  latest_gga->time.minutes = dev->latest_gga.time.minutes;
-  latest_gga->time.seconds = dev->latest_gga.time.seconds;
-  latest_gga->time.microseconds = dev->latest_gga.time.microseconds;
-
-  latest_gga->latitude = minmea_tocoord(&(dev->latest_gga.latitude));
-  latest_gga->longitude = minmea_tocoord(&(dev->latest_gga.longitude));
-  latest_gga->fix_quality = dev->latest_gga.fix_quality;
-  latest_gga->satellites_tracked = dev->latest_gga.satellites_tracked;
-  latest_gga->hdop = minmea_tofloat(&dev->latest_gga.hdop);
-  latest_gga->altitude = minmea_tofloat(&dev->latest_gga.altitude);
-  latest_gga->altitude_units = dev ->latest_gga.altitude_units;
-  latest_gga->height = minmea_tofloat(&dev -> latest_gga.height);
-  latest_gga->height_units = dev -> latest_gga.height_units;
-  latest_gga->dgps_age = dev -> latest_gga.dgps_age;
-
-  
-
-  *age = mgos_uptime_micros() - dev->latest_gga_timestamp;
-}
-
-
-void gps2_get_device_unixtime_from_latest_rmc(struct gps2 *dev, time_t *unixtime_now, int64_t *microseconds) {
-  struct tm time;
-  time_t gps_unixtime;
-  int64_t age;
-
-
-  /* construct a time object to represent the last GPRMC sentence from the GPS device */
-  time.tm_year = dev->latest_rmc.date.year - 1900;
-  time.tm_mon = dev->latest_rmc.date.month - 1;
-  time.tm_mday = dev->latest_rmc.date.day;
-  
-  time.tm_hour = dev->latest_rmc.time.hours;
-  time.tm_min = dev->latest_rmc.time.minutes;
-  time.tm_sec = dev->latest_rmc.time.seconds;
-
-  /* turn this into unix time */
-  gps_unixtime = mktime(&time);
-  
-  age = mgos_uptime_micros() - dev->latest_rmc_timestamp;
-
-  *unixtime_now = gps_unixtime + age/1000000;
-
-  *microseconds = age % 1000000;
-}
 
 
 
-
-void process_rmc_frame(struct gps2 *gps_dev, struct minmea_sentence_rmc rmc_frame) {
+void process_rmc_frame(struct gps2 *dev, struct minmea_sentence_rmc rmc_frame) {
   struct mgos_gps_location location;
   struct tm time;
 
   LOG(LL_DEBUG,("Processing RMC frame"));
   /* lon and lat */
-
-  gps_dev->latest_rmc = rmc_frame;
-  gps_dev->latest_rmc_timestamp = mgos_uptime_micros();
-
 
   /* check we have a fix */
   if (rmc_frame.valid == true) {
@@ -200,139 +64,28 @@ void process_rmc_frame(struct gps2 *gps_dev, struct minmea_sentence_rmc rmc_fram
     time.tm_hour = rmc_frame.time.hours;
     time.tm_min = rmc_frame.time.minutes;
     time.tm_sec = rmc_frame.time.seconds;
+    
 
     location.time = mktime(&time);
+
+    location.microseconds = rmc_frame.time.microseconds;
 
 
     location.longitude = minmea_tocoord(&(rmc_frame.longitude));
     location.latitude = minmea_tocoord(&(rmc_frame.latitude));
     location.speed = minmea_tofloat(&(rmc_frame.speed));    
-    bit_set(LOCATION_SPEED, &location.values_filled);
-    
     location.bearing = minmea_tofloat(&(rmc_frame.course));
-    bit_set(LOCATION_BEARING, &location.values_filled);
+    location.variation = minmea_tofloat(&(rmc_frame.variation));
+    
     
     location.elapsed_time = mgos_uptime_micros();
 
-    update_latest_date(gps_dev, &(rmc_frame.date));
-    update_latest_time(gps_dev, &(rmc_frame.time));
-    
-
+    dev->latest_location = location;
 
     mgos_event_trigger(MGOS_EV_GPS_LOCATION,&location);
 
   }
 }
-
-void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_frame) {
-
-  struct mgos_gps_location location;
-  struct tm time;
-
-  int previous_fix_quality;
-
-  LOG(LL_DEBUG,("Processing GGA frame"));
-
-  if (gps_dev->has_latest_date) {
-
-    /* check if the the gga frame time is later than the latest time */
-    if (is_later_time(&(gga_frame.time), &(gps_dev->latest_time))) {
-      time.tm_year = gps_dev->latest_date.year + 100;
-      time.tm_mon = gps_dev->latest_date.month - 1;
-      time.tm_mday = gps_dev->latest_date.day;
-      
-      time.tm_hour = gga_frame.time.hours;
-      time.tm_min = gga_frame.time.minutes;
-      time.tm_sec = gga_frame.time.seconds;
-      
-
-      location.time = mktime(&time);
-
-
-      location.longitude = minmea_tocoord(&(gga_frame.longitude));
-      location.latitude = minmea_tocoord(&(gga_frame.latitude));
-        
-      location.altitude = minmea_tofloat(&(gga_frame.altitude));
-      
-
-      bit_set(LOCATION_ALTITUDE, &location.values_filled);
-      
-      location.elapsed_time = mgos_uptime_micros();
-
-      update_latest_time(gps_dev, &gga_frame.time);
-
-      mgos_event_trigger(MGOS_EV_GPS_LOCATION, &location);
-
-      
-
-      
-
-
-
-    }
-
-
-
-
-
-  }
-
-
-
-  
-
-
-  previous_fix_quality = gps_dev->latest_gga.fix_quality;
-
-   /* satellites tracked */
-  
-  
-  gps_dev->latest_gga = gga_frame;
-  gps_dev->latest_gga_timestamp = mgos_uptime_micros();
-
-
-
-
-
-  if (gps_dev->handler) {
-      /* Tell our handler that we've got a location update*/
-        gps_dev->handler(gps_dev, 
-          GPS_EV_GGA, 
-          NULL,
-          gps_dev->handler_user_data);
-      
-      
-    }
-  
-
-  /* check if we've just lost our fix */
-  if (gga_frame.fix_quality ==0 && previous_fix_quality >0) {
-    if (gps_dev->handler) {
-      /* Tell our handler that we've lost our fix*/
-        gps_dev->handler(gps_dev, 
-            GPS_EV_FIX_LOST, 
-            NULL,
-            gps_dev->handler_user_data);  
-      
-    }
-
-  }
-
-  /* check if we've aquired our fix */
-  if (gga_frame.fix_quality > 0 && previous_fix_quality ==0) {
-    if (gps_dev->handler) {
-      /* Tell our handler that we've got a fix */
-        gps_dev->handler(gps_dev, 
-          GPS_EV_FIX_ACQUIRED, 
-          NULL,
-          gps_dev->handler_user_data);
-      
-      
-    }
-  }
-
-}
-
 
 void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
 
@@ -345,6 +98,11 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
   /* parse the sentence */
   sentence_id = minmea_sentence_id(line.p, false);
 
+  sentence.sentence_id = sentence_id;
+  sentence.nmea_string = line.p;
+  
+  mgos_event_trigger(MGOS_EV_GPS_NMEA_SENTENCE, &sentence);
+
   
 
   switch (sentence_id) {
@@ -353,35 +111,9 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
       if (minmea_parse_rmc(&frame, line.p)) {
         process_rmc_frame(gps_dev, frame);
           /* fire the trigger for the RMC sentence */
-          sentence.sentence_id = MGOS_GPS_NMEA_SENTENCE_RMC;
           
-          mgos_event_trigger(MGOS_EV_GPS_NMEA_SENTENCE, &sentence);
 
       }
-    } break;
-    case MINMEA_SENTENCE_GGA: {
-      struct minmea_sentence_gga frame;
-      if (minmea_parse_gga(&frame, line.p)) {
-        process_gga_frame(gps_dev, frame);
-        sentence.sentence_id = MGOS_GPS_NMEA_SENTENCE_GGA;
-          
-          mgos_event_trigger(MGOS_EV_GPS_NMEA_SENTENCE, &sentence);
-      }
-    } break;
-    
-    case MINMEA_SENTENCE_PROPRIETARY: {
-
-      LOG(LL_DEBUG,("NMEA library says proprietary sentence"));
-      // if we have a callback handler, call it
-      if (gps_dev->proprietary_sentence_parser !=NULL) {
-        gps_dev->proprietary_sentence_parser(line,gps_dev);
-
-      }
-      // call a callback function with line and gps_dev
-    } break;
-    case MINMEA_UNKNOWN: {
-      LOG(LL_DEBUG,("NMEA library says sentence unknown"));
-      
     } break;
     default: {
       /* do nothing */
@@ -390,12 +122,6 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
   }
 
   
-  
-  if (sentence_id) {
-    LOG(LL_DEBUG,("NMEA sentence id: %d",sentence_id));
-  } else {
-    LOG(LL_DEBUG,("NMEA library failed to parse sentence"));
-  }
   (void)gps_dev;
 
 }
@@ -442,28 +168,6 @@ void gps2_uart_rx_callback(int uart_no, struct gps2 *gps_dev, size_t rx_availabl
 
       line_buffer_nul = mg_strdup_nul(line_buffer);
       
-      LOG(LL_DEBUG,("RX line is %s",line_buffer_nul.p));
-
-
-      /* if we weren't already connected, set connected to 1 and fire a connected event */
-      if (gps_dev->latest_rx_timestamp ==0) {
-        if (gps_dev->handler) {
-      /* Tell our handler that we've lost our fix*/
-        gps_dev->handler(gps_dev, 
-            GPS_EV_CONNECTED, 
-            NULL,
-            gps_dev->handler_user_data);  
-      
-        }
-
-
-      }
-
-      /* set our latest rx timestamp to uptime*/
-      gps_dev->latest_rx_timestamp = mgos_uptime_micros();
-
-      
-
       /* parse the line */
       parseNmeaString(line_buffer_nul, gps_dev);
 
@@ -602,10 +306,6 @@ bool gps2_set_device_uart_baud(struct gps2 *dev, int baud_rate) {
   // update the baud on UART config on our device
   dev->uart_config.baud_rate = baud_rate;
 
-  // reset the timestamp for the last received data. This will
-  // force a connected event
-  dev->latest_rx_timestamp = 0;
-
   // apply it to the UART device
   if (mgos_uart_configure(dev->uart_no, &(dev->uart_config))) {
     return true;
@@ -631,7 +331,7 @@ bool gps2_set_uart_baud(int baud_rate) {
 
 
 struct gps2 *gps2_create_uart(
-  uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, void *handler_user_data) {
+  uint8_t uart_no, struct mgos_uart_config *ucfg) {
 
     struct gps2 *gps_dev = calloc(1, sizeof(struct gps2));
       
@@ -647,8 +347,6 @@ struct gps2 *gps2_create_uart(
 
 
     gps_dev->uart_no = uart_no;
-    gps_dev->handler = handler;
-    gps_dev->handler_user_data = handler_user_data;
     memcpy(&(gps_dev->uart_config),ucfg,sizeof(struct mgos_uart_config));
 
 
@@ -675,21 +373,10 @@ struct gps2 *gps2_create_uart(
     
     mgos_uart_set_rx_enabled(gps_dev->uart_no, true);
 
-    /* set our latest rx timestamp to 0 */
-    gps_dev->latest_rx_timestamp = 0;
 
-    /* set our disconnect timout to 0. This disables the functionality. 
-      * call gps2_set_disconnect_timeout to turn on this feature.
-    */
-    gps_dev->disconnect_timeout = 0;
 
     LOG(LL_INFO, ("Initialized GPS device"));
-    if (gps_dev->handler) {
-          gps_dev->handler(gps_dev, 
-          GPS_EV_INITIALIZED, 
-          NULL,
-          gps_dev->handler_user_data);
-    }
+  
     return gps_dev;
 
 
@@ -705,7 +392,6 @@ struct gps2 *gps2_create_uart(
 static struct gps2 *create_global_device(uint8_t uart_no) {
 
   struct mgos_uart_config ucfg;
-  int disconnect_timeout;
 
   mgos_uart_config_set_defaults(uart_no,&ucfg);
 
@@ -716,135 +402,37 @@ static struct gps2 *create_global_device(uint8_t uart_no) {
   ucfg.tx_buf_size = mgos_sys_config_get_gps_uart_tx_buffer_size();
   ucfg.rx_buf_size = mgos_sys_config_get_gps_uart_rx_buffer_size();
 
-  global_gps_device = gps2_create_uart(uart_no, &ucfg, NULL, NULL);
-
-  disconnect_timeout = mgos_sys_config_get_gps_uart_disconnect_timeout();
-  if (disconnect_timeout > 0) {
-    gps2_enable_disconnect_timer(disconnect_timeout);
-  }
+  global_gps_device = gps2_create_uart(uart_no, &ucfg);
 
   return global_gps_device;
 
 
 }
 
-/* set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
-  is acquired or lost and whenever there is a location update */
-void gps2_set_device_ev_handler(struct gps2 *dev, gps2_ev_handler handler, void *handler_user_data) {
-  dev->handler = handler;
-  dev->handler_user_data = handler_user_data;
-}
 
 /* get the global gps2 device. Returns null if creating the UART handler has failed */
 struct gps2 *gps2_get_global_device() {
   return global_gps_device;
 }
 
-/* set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
-  is acquired or lost and whenever there is a location update */
-void gps2_set_ev_handler(gps2_ev_handler handler, void *handler_user_data) {
-  gps2_get_global_device()->handler = handler;
-  gps2_get_global_device()->handler_user_data = handler_user_data;
-}
+
 
 
 /* location including speed and course and age of fix in milliseconds 
    this is derived from the most recent RMC sentence*/
-void gps2_get_latest_rmc(struct gps2_rmc *latest_rmc, int64_t *age) {
-  gps2_get_device_latest_rmc(gps2_get_global_device(),latest_rmc, age);
+void mgos_gps_get_latest_location(struct mgos_gps_location *latest_location) {
+  mgos_gps_device_get_latest_location(gps2_get_global_device(),latest_location);
 };
 
-/* satellites used in last full GPGGA sentence */
-void gps2_get_latest_gga(struct gps2_gga *latest_gga, int64_t *age) {
-  gps2_get_device_latest_gga(gps2_get_global_device(),latest_gga, age);
-
-};
-
-/* unix time now in milliseconds and microseconds adjusted for age*/
-void gps2_get_unixtime_from_latest_rmc(time_t *unix_time, int64_t *microseconds) {
-  gps2_get_device_unixtime_from_latest_rmc(gps2_get_global_device(),unix_time,microseconds);
+void mgos_gps_device_get_latest_location(struct gps2 *dev, struct mgos_gps_location *latest_location) {
+  latest_location->latitude = dev->latest_location.latitude;
+  latest_location->longitude = dev->latest_location.longitude;
+  latest_location->bearing = dev->latest_location.bearing;
+  latest_location->speed = dev->latest_location.speed;
+  latest_location->variation = dev->latest_location.variation;
+  latest_location->time = dev->latest_location.time;
+  latest_location->elapsed_time = dev->latest_location.elapsed_time; 
 }
-
-
-
-
-void gps2_set_proprietary_sentence_parser(gps2_proprietary_sentence_parser prop_sentence_parser) {
-  gps2_get_global_device()->proprietary_sentence_parser = prop_sentence_parser;
-
-}
-
-void gps2_set_device_proprietary_sentence_parser(struct gps2 *gps_dev, gps2_proprietary_sentence_parser prop_sentence_parser) {
-  gps_dev->proprietary_sentence_parser = prop_sentence_parser;
-
-}
-
-int mgos_gps_has_bearing(const struct mgos_gps_location *location) {
-  return (bit_test(LOCATION_BEARING,location->values_filled));
-}
-
-int mgos_gps_has_speed(const struct  mgos_gps_location *location) {
-  return (bit_test(LOCATION_SPEED,location->values_filled));
-
-}
-
-int mgos_gps_has_altitude(const struct  mgos_gps_location *location) {
-  return (bit_test(LOCATION_ALTITUDE,location->values_filled));
-}
-
-
-/*
-* Callback for the disconnect timer for a device
-*/
-void gps2_disconnect_timer_callback(void *arg) {
-  struct gps2 *gps_dev;
-  
-  int64_t uptime_now;
-
-  gps_dev = arg;
-
-  /* if we are disconnected, return now */
-  if (gps_dev->latest_rx_timestamp ==0) {
-    return;
-  }
-
-  /* check to see if we have received a sentence within the disconnect timeout */
-  uptime_now = mgos_uptime_micros();
-
-
-  if ((uptime_now - gps_dev->latest_rx_timestamp) > (gps_dev->disconnect_timeout) * 1000 ) {
-    /* if we have timed out, set the latest_rx_timestamp to 0 and fire the timedout event */
-    gps_dev->latest_rx_timestamp = 0;
-    
-    if (gps_dev->handler) {
-          gps_dev->handler(gps_dev, 
-          GPS_EV_TIMEDOUT, 
-          NULL,
-          gps_dev->handler_user_data);
-    }
-  }
-
-
-
-
-
-}
-
-
-/* set the disconnect timeout. If no NMEA sentence is received within this time, the API will fire
- a disconnect event */
-void gps2_enable_disconnect_timer(int disconnect_timeout) {
-  gps2_enable_device_disconnect_timer(gps2_get_global_device(),disconnect_timeout);
-
-}
-
- /* set the disconnect timeout on a device */
-void gps2_enable_device_disconnect_timer(struct gps2 *dev, int disconnect_timeout) {
-  dev->disconnect_timeout = disconnect_timeout;
-  dev->disconnect_timer_id = mgos_set_timer(disconnect_timeout,MGOS_TIMER_REPEAT,gps2_disconnect_timer_callback,dev);
-
-}
-
-
 
 
 enum mgos_init_result mgos_gps2_init(void) {

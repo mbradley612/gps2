@@ -15,15 +15,7 @@
 */
 
 #include "mgos.h"
-
-#define GPS_EV_NONE 0x0000
-#define GPS_EV_INITIALIZED 0x0001
-#define GPS_EV_RMC 0x0002
-#define GPS_EV_GGA 0x0003
-#define GPS_EV_CONNECTED 0x0004
-#define GPS_EV_TIMEDOUT 0x0005
-#define GPS_EV_FIX_ACQUIRED 0x0006
-#define GPS_EV_FIX_LOST 0x0007
+#include "minmea.h"
 
 
 #define MGOS_EV_GPS_BASE MGOS_EVENT_BASE('G','P','S')
@@ -36,38 +28,27 @@ enum mgos_gps_event {
   
 };
 
+/* mgos_gps_locatoin built from RMC*/
+
 struct mgos_gps_location {
   float latitude;
   float longitude;
-  float altitude;
   float bearing;
   float speed;
+  float variation;
   time_t time;
+  int microseconds;
   int64_t elapsed_time;
-  char values_filled;
 
 };
 
-enum mgos_gps_nmea_sentence_id {
-  MGOS_GPS_NMEA_SENTENCE_RMC,
-  MGOS_GPS_NMEA_SENTENCE_GGA
-};
 
 struct mgos_gps_nmea_sentence {
-  enum mgos_gps_nmea_sentence_id sentence_id;
+  enum minmea_sentence_id sentence_id;
+  const char *nmea_string; 
 };
 
-int mgos_gps_has_bearing(const struct mgos_gps_location *location);
-
-int mgos_gps_has_speed(const struct  mgos_gps_location *location);
-
-int mgos_gps_has_altitude(const struct  mgos_gps_location *location);
-
-enum mgos_gps_gga_fix_quality {
-  MGOS_GPS_GGA_FIX_NOT_AVAILABLE = 0,
-  MGOS_GPS_GGA_GPS_FIX = 1,
-  MGOS_GPS_GGA_DGPS_FIX = 2
-};
+void mgos_gps_get_latest_location(struct mgos_gps_location *location);
 
 
 
@@ -77,65 +58,7 @@ enum mgos_gps_gga_fix_quality {
 
 struct gps2;
 
-
-
-
-typedef void (*gps2_ev_handler)(struct gps2 *gps,
-                                            int ev, void *ev_data,
-                                            void *user_data);
-struct gps2_datetime {
-  int year;
-  int month;
-  int day;
-  int hours;
-  int minutes;
-  int seconds;
-  int microseconds;  
-
-};
-
-
-struct gps2_time {
-  int hours;
-  int minutes;
-  int seconds;
-  int microseconds;  
-
-};
-
-
-struct gps2_rmc {
-  struct gps2_datetime datetime;
-  float latitude;
-  float longitude;
-  float speed;
-  float course;
-  float variation;
-};
-
-
-struct gps2_gga {
-  struct gps2_time time;
-  float latitude;
-  float longitude;
-  int fix_quality;
-  int satellites_tracked;
-  float hdop;
-  float altitude;
-  char altitude_units;
-  float height;
-  char height_units;
-  int dgps_age;
-
-};
-             
-/*
-* Callback for the event handler
-*/
-typedef void (*gps2_ev_handler)(struct gps2 *gps,
-                                            int ev, void *ev_data,
-                                            void *user_data);
-
+ 
 
 /*
 * Functions for accessing the global instance. The global instance is created
@@ -145,16 +68,8 @@ typedef void (*gps2_ev_handler)(struct gps2 *gps,
 
 
 
-/* set the event handler for the global device. The handler callback will be called when the GPS is initialized, when a GPS fix
-  is acquired or lost and whenever there is a location update */
-void gps2_set_ev_handler(gps2_ev_handler handler, void *handler_user_data);
 
-/* location including speed and course and age of fix in milliseconds 
-   this is derived from the most recent RMC sentence*/
-void gps2_get_latest_rmc(struct gps2_rmc *latest_rmc, int64_t *age);
 
-/* satellites used in last full GPGGA sentence */
-void gps2_get_latest_gga(struct gps2_gga *latest_gga, int64_t *age);
 
 
 /* get the global gps2 device. Returns null if creating the UART handler has failed */
@@ -174,26 +89,10 @@ struct gps2;
 /* create the gps2 device on a uart and set the event handler. The handler callback will be called when the GPS is initialized, when a GPS fix
   is acquired or lost and whenever there is a location update */
 
-struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg, gps2_ev_handler handler, 
-  void *handler_user_data);
+struct gps2 *gps2_create_uart(uint8_t uart_no, struct mgos_uart_config *ucfg);
 
 void gps2_destroy_device(struct gps2 *dev);
 
-/* location including speed and course and age of fix in milliseconds 
-   this is derived from the most recent RMC sentence*/
-void gps2_get_device_latest_rmc(struct gps2 *dev, struct gps2_rmc *latest_rmc, int64_t *fix_age);
- 
-/* date and time */
-void gps2_get_device_latest_gga(struct gps2 *dev, struct gps2_gga *latest_gga, int64_t *age );
-
-/* unix time now in milliseconds and microseconds adjusted for age from the last rmc sentence*/
-void gps2_get_device_unixtime_from_latest_rmc(struct gps2 *dev, time_t *unix_time, int64_t *microseconds);
-
-
-
-/* set the event handler for a device. The handler callback will be called when the GPS is initialized, when a GPS fix
-  is acquired or lost and whenever there is a location update */
-void gps2_set_device_ev_handler(struct gps2 *dev, gps2_ev_handler handler, void *handler_user_data);
 
 /* set the UART baud after initialisation */
 bool gps2_set_device_uart_baud(struct gps2 *dev, int baud_rate);
@@ -201,22 +100,9 @@ bool gps2_set_device_uart_baud(struct gps2 *dev, int baud_rate);
 /* set the UART baud after initialisation on the global device*/
 bool gps2_set_uart_baud(int baud_rate);
 
-/* enable the disconnect timer. Implemented as a software timer runs on a repeat cycle. 
-  If no NMEA sentence is received between callbacks, the disconnect event fires. Set to
-  0 to clear the timer for the device */
- 
- void gps2_enable_disconnect_timer(int disconnect_timeout);
-
- /* set the disconnect timeout on a device */
-void gps2_enable_device_disconnect_timer(struct gps2 *dev, int disconnect_timeout);
-
-/* disable the disconnect timer */
-void gps2_disable_disconnect_timer();
-
-/* disable the disconnect timer on a device*/
-void gps2_disable_disconnect_timer(struct gps2 *dev);
 
 
+void mgos_gps_device_get_latest_location(struct gps2 *dev, struct mgos_gps_location *location);
 
 
 
@@ -227,14 +113,5 @@ void gps2_send_command(struct mg_str command_string);
 
 void gps2_send_device_command(struct gps2 *gps_dev, struct mg_str command_string);
 
-
-/* callback for when the gps device emits a proprietary sentence */
-
-typedef void (*gps2_proprietary_sentence_parser)(struct mg_str line, struct gps2 *gps_dev);        
-
-
-void gps2_set_proprietary_sentence_parser(gps2_proprietary_sentence_parser prop_sentence_parser);
-
-void gps2_set_device_proprietary_sentence_parser(struct gps2 *gps_dev, gps2_proprietary_sentence_parser prop_sentence_parser);
 
 
