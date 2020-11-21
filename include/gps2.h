@@ -32,8 +32,7 @@ enum mgos_gps_event {
   MGOS_EV_GPS_LOCATION =
     MGOS_EV_GPS_BASE, /* event_data: strict mgos_gps_location */
   MGOS_EV_GPS_NMEA_SENTENCE, /* event_data: strict mgos_gps_nmea_sentence */
-  MGOS_EV_GPS_NMEA_STRING, /* event_data: strict mgos_gps_nmea_string */
-  MGOS_EV_GPS_STATUS /* event_data: strict mgos_gps_status */
+  MGOS_EV_GPS_NMEA_STRING
   
 };
 
@@ -47,6 +46,15 @@ struct mgos_gps_location {
   int64_t elapsed_time;
   char values_filled;
 
+};
+
+enum mgos_gps_nmea_sentence_id {
+  MGOS_GPS_NMEA_SENTENCE_RMC,
+  MGOS_GPS_NMEA_SENTENCE_GGA
+};
+
+struct mgos_gps_nmea_sentence {
+  enum mgos_gps_nmea_sentence_id sentence_id;
 };
 
 int mgos_gps_has_bearing(const struct mgos_gps_location *location);

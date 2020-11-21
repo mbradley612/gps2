@@ -185,8 +185,10 @@ void process_rmc_frame(struct gps2 *gps_dev, struct minmea_sentence_rmc rmc_fram
 
   LOG(LL_DEBUG,("Processing RMC frame"));
   /* lon and lat */
+
   gps_dev->latest_rmc = rmc_frame;
   gps_dev->latest_rmc_timestamp = mgos_uptime_micros();
+
 
   /* check we have a fix */
   if (rmc_frame.valid == true) {
@@ -230,8 +232,7 @@ void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_fram
   int previous_fix_quality;
 
   LOG(LL_DEBUG,("Processing GGA frame"));
-  /* GGA doesn't have the date so we need to pick up the latest date, */
-  
+
   if (gps_dev->has_latest_date) {
 
     /* check if the the gga frame time is later than the latest time */
@@ -260,9 +261,17 @@ void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_fram
 
       update_latest_time(gps_dev, &gga_frame.time);
 
+      mgos_event_trigger(MGOS_EV_GPS_LOCATION, &location);
+
+      
+
+      
+
 
 
     }
+
+
 
 
 
@@ -326,7 +335,9 @@ void process_gga_frame(struct gps2 *gps_dev, struct minmea_sentence_gga gga_fram
 
 
 void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
-  
+
+
+  struct mgos_gps_nmea_sentence sentence;
 
   enum minmea_sentence_id sentence_id;
 
@@ -341,12 +352,20 @@ void parseNmeaString(struct mg_str line, struct gps2 *gps_dev) {
       struct minmea_sentence_rmc frame;
       if (minmea_parse_rmc(&frame, line.p)) {
         process_rmc_frame(gps_dev, frame);
+          /* fire the trigger for the RMC sentence */
+          sentence.sentence_id = MGOS_GPS_NMEA_SENTENCE_RMC;
+          
+          mgos_event_trigger(MGOS_EV_GPS_NMEA_SENTENCE, &sentence);
+
       }
     } break;
     case MINMEA_SENTENCE_GGA: {
       struct minmea_sentence_gga frame;
       if (minmea_parse_gga(&frame, line.p)) {
         process_gga_frame(gps_dev, frame);
+        sentence.sentence_id = MGOS_GPS_NMEA_SENTENCE_GGA;
+          
+          mgos_event_trigger(MGOS_EV_GPS_NMEA_SENTENCE, &sentence);
       }
     } break;
     
