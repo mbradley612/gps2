@@ -1,4 +1,83 @@
-# GPS2 Library for Mongoose OS
+# GPS Library for Mongoose OS
+
+This library provides a simple and flexible API to obtain location information from GPS devices that output
+using NMEA sentences. Callers of the library can register for GPS events or can call directly for the most recent
+information.
+
+The events are:
+
+* Location update
+* NMEA sentence 
+* NMEA string
+* GPS status
+
+C Usage for Location:
+
+```
+static void location_update_handler(int event, void *event_data, void *userdata) {#
+    const struct mgos_gps_location *location = (const struct mgos_gps_location *) event_data;
+
+    double longitude;
+    double latitude;
+    double altitude;
+    double bearing;
+    double speed;
+    int32_t time;
+    int64_t elapsed_time;
+
+    longitude = location.longitude;
+    latitude = location.latitude;
+    time = location.time;
+
+
+    LOG(LL_INFO, ("Latitude: %d Longitude %d", longitude, latitude));
+
+    if (mgos_gps_has_location(&location)) {
+        altitude = location.altitude;
+        LOG (LL_INFO, ("Altitude: %d", altitude));
+
+    } 
+
+    if (mgos_gps_has_bearing(&location)) {
+        bearing = location.bearing;
+        LOG (LL_INFO, ("Bearing: %d", bearing));
+
+    } 
+    if (mgos_gps_has_speed(&Location)) {
+        speed = location.speed;
+        LOG (LL_INFO, ("Speed: %d", speed));
+    }
+    elapsed_time = location.elapsed_time;
+
+    
+}
+
+
+mgos_event_add_handler(MGOS_EV_GPS_LOCATION, location_update_handler, NULL); 
+```
+
+Javascript Location usage:
+
+```
+GPS.addHandler(GPS.LOCATION,
+    function(event, eventData, userdata) {
+        print("Location update. Longitude: " + eventData.longitude + ", Latitude: " + eventData.latitude);
+
+        if (GPS.hasAltitude(eventData)) {
+            print ("Altutude: " + eventData.altitude);
+        } 
+
+    }, null );
+```
+
+## Acknowledgements
+
+The basic Location API is modelled on the Android Location API, see https://developer.android.com/reference/android/location/package-summary.
+
+The NMEA parsing uses the minmea library, see https://github.com/kosma/minmea
+
+
+## Old readme starts here
 
 This library provides for Mongoose OS a wrapper for minmea GPS library, https://github.com/kosma/minmea that:
 
