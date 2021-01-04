@@ -1,9 +1,10 @@
 {
     "browse.path": "/home/matthew/git/mongoose-os/include/**",
-    "includePath": "./include/**",
+    "includePath": ["./include/**",
+        "./deps/rpc-common/include/**"],
     "mos.flags": "--local",
     "mos.board": "ESP32",
-    "files.associations": {
+    "files.associatubions": {
         "gps2.h": "c",
         "mgos.h": "c",
         "mbuf.h": "c",

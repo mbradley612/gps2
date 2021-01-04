@@ -19,6 +19,7 @@
 #include "time.h"
 #include "mgos_time.h"
 #include "gps2.h"
+#include "mgos_rpc.h"
 
 
 #include "minmea.h"
@@ -440,6 +441,7 @@ enum mgos_init_result mgos_gps2_init(void) {
   uint8_t gps_config_uart_baud;
 
   mgos_event_register_base(MGOS_EV_GPS_BASE, __FILE__);
+
 
   gps_config_uart_no = mgos_sys_config_get_gps_uart_no();
   gps_config_uart_baud = mgos_sys_config_get_gps_uart_baud();
