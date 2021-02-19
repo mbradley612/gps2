@@ -109,7 +109,7 @@ void mgos_gps_device_get_latest_location(struct gps2 *dev, struct mgos_gps_locat
 
 /* send a proprietary string command_string to the global GPS */
 
-void gps2_send_command(struct mg_str command_string);
+int gps2_send_command(struct mg_str command_string);
 
 void gps2_send_device_command(struct gps2 *gps_dev, struct mg_str command_string);
 
