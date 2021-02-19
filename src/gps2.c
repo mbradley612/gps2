@@ -283,7 +283,7 @@ void gps2_send_device_command(struct gps2 *gps_dev, struct mg_str command_string
  
   */ 
 
-void gps2_send_command(struct mg_str command_string) {
+int gps2_send_command(struct mg_str command_string) {
 
   if (gps2_get_global_device()) {
     gps2_send_device_command(gps2_get_global_device(), command_string);
